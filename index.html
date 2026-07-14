@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sổ Từ Vựng — Flashcard & Ôn tập mỗi ngày</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --surface: #1a1f36;
+      --surface-2: #232a48;
+      --border: #2f3763;
+      --text: #e7eaf6;
+      --muted: #9aa3c7;
+      --primary: #6c8cff;
+      --primary-2: #8aa2ff;
+      --green: #35c88a;
+      --red: #ff6b6b;
+      --amber: #ffb454;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f6ff; --surface: #ffffff; --surface-2: #eef1fb;
+        --border: #dde2f5; --text: #1a1f36; --muted: #5b6486;
+        --shadow: 0 10px 30px rgba(40,60,120,.10);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 80% -10%, rgba(108,140,255,.18), transparent 60%), var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px 18px 80px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    h1 { font-size: 22px; margin: 0; letter-spacing: -.02em; }
+    h1 .dot { color: var(--primary); }
+    .sub { color: var(--muted); font-size: 13px; margin: 2px 0 20px; }
+    nav.tabs { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); padding: 6px; border-radius: 14px; margin-bottom: 22px; box-shadow: var(--shadow); overflow-x: auto; }
+    nav.tabs button {
+      flex: 1; white-space: nowrap; border: 0; background: transparent; color: var(--muted);
+      padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: .15s;
+    }
+    nav.tabs button.active { background: var(--primary); color: #fff; box-shadow: 0 6px 16px rgba(108,140,255,.4); }
+    nav.tabs button:not(.active):hover { color: var(--text); background: var(--surface-2); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; }
+    .stat .n { font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+    .stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .stat.due .n { color: var(--amber); }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+    input, textarea {
+      width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 11px 13px; font-size: 15px; font-family: inherit; resize: vertical;
+    }
+    input:focus, textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
+    .row { margin-bottom: 14px; }
+    .btn {
+      border: 0; border-radius: 10px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer;
+      background: var(--primary); color: #fff; transition: .15s;
+    }
+    .btn:hover { background: var(--primary-2); }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .btn.ghost:hover { background: var(--border); }
+    .btn.sm { padding: 7px 12px; font-size: 13px; }
+    .btn.danger { background: transparent; color: var(--red); border: 1px solid var(--border); }
+    .btn.danger:hover { background: rgba(255,107,107,.12); }
+    .btnbar { display: flex; gap: 10px; flex-wrap: wrap; }
+    .acct { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+
+    .search { margin-bottom: 14px; }
+    .vlist { display: flex; flex-direction: column; gap: 10px; }
+    .vitem { display: flex; align-items: flex-start; gap: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; }
+    .vitem .term { font-weight: 700; font-size: 16px; }
+    .vitem .mean { color: var(--muted); font-size: 14px; margin-top: 2px; }
+    .vitem .ex { color: var(--muted); font-size: 13px; font-style: italic; margin-top: 4px; opacity: .85; }
+    .vitem .meta { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+    .pill.due { color: var(--amber); border-color: var(--amber); }
+    .iconbtn { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; }
+    .iconbtn:hover { color: var(--text); background: var(--surface); }
+
+    .flash-area { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .flashcard { width: 100%; max-width: 520px; height: 300px; perspective: 1400px; cursor: pointer; }
+    .flash-inner { position: relative; width: 100%; height: 100%; transition: transform .5s; transform-style: preserve-3d; }
+    .flashcard.flipped .flash-inner { transform: rotateY(180deg); }
+    .flash-face {
+      position: absolute; inset: 0; backface-visibility: hidden; border-radius: 20px; border: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center;
+      background: var(--surface); box-shadow: var(--shadow);
+    }
+    .flash-face .hint { position: absolute; top: 14px; left: 16px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .flash-face .big { font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+    .flash-face .ex { color: var(--muted); font-style: italic; margin-top: 14px; font-size: 15px; }
+    .flash-back { transform: rotateY(180deg); background: linear-gradient(160deg, var(--surface-2), var(--surface)); }
+    .progress-txt { color: var(--muted); font-size: 13px; }
+    .grade-bar { display: flex; gap: 10px; }
+    .empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+    .empty .em { font-size: 40px; margin-bottom: 10px; }
+    footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 30px; }
+    .hidden { display: none !important; }
+    .center { text-align: center; }
+    a.link { color: var(--primary); cursor: pointer; text-decoration: none; font-weight: 600; }
+
+    .screen { max-width: 440px; margin: 8vh auto 0; }
+    .screen h2 { margin: 0 0 6px; font-size: 20px; }
+    .screen p { color: var(--muted); font-size: 14px; margin: 0 0 18px; line-height: 1.55; }
+    .screen code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: 12px; }
+    .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 12px 18px; border-radius: 12px; box-shadow: var(--shadow); font-size: 14px; z-index: 50; }
+
+    .pod-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+    .pod-cover { width: 64px; height: 64px; border-radius: 14px; background: linear-gradient(150deg, var(--primary), #b06cff); display: flex; align-items: center; justify-content: center; font-size: 30px; flex-shrink: 0; box-shadow: var(--shadow); }
+    .pod-title { font-size: 18px; font-weight: 800; }
+    .pod-meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .pod-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .pod-play { width: 52px; height: 52px; border-radius: 50%; font-size: 20px; padding: 0; display: flex; align-items: center; justify-content: center; }
+    .pod-speed { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+    .pod-speed button { border: 0; background: transparent; color: var(--muted); font-weight: 700; font-size: 12px; padding: 6px 9px; border-radius: 7px; cursor: pointer; }
+    .pod-speed button.on { background: var(--primary); color: #fff; }
+    .pod-script { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+    .pod-line { padding: 7px 11px; border-radius: 9px; font-size: 14px; color: var(--muted); transition: .15s; }
+    .pod-line.term { color: var(--text); font-weight: 700; font-size: 15px; }
+    .pod-line.label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; opacity: .7; }
+    .pod-line.active { background: var(--primary); color: #fff; }
+    .pod-line.active.term { color: #fff; }
+  </style>
+</head>
+<body>
+  <!-- Màn hình cấu hình (khi chưa điền config.js) -->
+  <div id="screenSetup" class="wrap hidden">
+    <div class="card screen">
+      <h2>⚙️ Cần cấu hình Supabase</h2>
+      <p>Mở file <code>config.js</code> và điền <code>SUPABASE_URL</code> cùng <code>SUPABASE_PUBLISHABLE_KEY</code> lấy từ Supabase Dashboard → Project Settings → API Keys. Xem hướng dẫn chi tiết trong <code>README.md</code>.</p>
+    </div>
+  </div>
+
+  <!-- Màn hình đăng nhập -->
+  <div id="screenLogin" class="wrap hidden">
+    <div class="card screen">
+      <h2 id="authTitle">🔐 Đăng nhập</h2>
+      <p id="authSub">Nhập email và mật khẩu để đăng nhập. Tài khoản do quản trị viên cấp — không có đăng ký tự do.</p>
+      <div class="row"><input id="loginEmail" type="email" placeholder="ban@example.com" autocomplete="email" /></div>
+      <div class="row"><input id="loginPass" type="password" placeholder="Mật khẩu" autocomplete="current-password" /></div>
+      <button class="btn" id="btnAuth" style="width:100%">Đăng nhập</button>
+      <p id="loginMsg" class="center" style="margin-top:14px"></p>
+    </div>
+  </div>
+
+  <!-- App chính -->
+  <div id="app" class="wrap hidden">
+    <header>
+      <div>
+        <h1>Sổ Từ Vựng<span class="dot">.</span></h1>
+        <div class="sub">Nhập từ · Flashcard · Ôn tập mỗi ngày · Đồng bộ đám mây</div>
+      </div>
+      <div class="acct">
+        <span id="acctEmail"></span>
+        <button class="btn ghost sm" id="btnExport">⬇ Xuất</button>
+        <button class="btn ghost sm" id="btnImport">⬆ Nhập</button>
+        <button class="btn ghost sm" id="btnLogout">Đăng xuất</button>
+        <input type="file" id="fileImport" accept="application/json" class="hidden" />
+      </div>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><div class="n" id="statTotal">0</div><div class="l">Tổng số từ</div></div>
+      <div class="stat due"><div class="n" id="statDue">0</div><div class="l">Cần ôn hôm nay</div></div>
+      <div class="stat"><div class="n" id="statLearned">0</div><div class="l">Đã thuộc</div></div>
+      <div class="stat"><div class="n" id="statStreak">0</div><div class="l">Chuỗi ngày 🔥</div></div>
+    </div>
+
+    <nav class="tabs">
+      <button data-tab="review" class="active">📅 Ôn hôm nay</button>
+      <button data-tab="podcast">🎧 Podcast</button>
+      <button data-tab="flash">🃏 Flashcard</button>
+      <button data-tab="add">➕ Thêm từ</button>
+      <button data-tab="list">📚 Danh sách</button>
+    </nav>
+
+    <section id="tab-add" class="hidden">
+      <div class="card">
+        <div class="row">
+          <label for="fTerm">Từ vựng *</label>
+          <input id="fTerm" placeholder="ví dụ: ubiquitous" autocomplete="off" />
+        </div>
+        <div class="row">
+          <label for="fMean">Nghĩa *</label>
+          <input id="fMean" placeholder="ví dụ: có mặt ở khắp nơi" autocomplete="off" />
+        </div>
+        <div class="row">
+          <label for="fEx">Ví dụ / ghi chú (không bắt buộc)</label>
+          <textarea id="fEx" rows="2" placeholder="ví dụ: Smartphones are now ubiquitous."></textarea>
+        </div>
+        <div class="btnbar">
+          <button class="btn" id="btnAdd">Lưu từ</button>
+          <span id="addMsg" style="align-self:center;color:var(--green);font-size:13px;font-weight:600"></span>
+        </div>
+        <p class="sub" style="margin-top:16px">💡 Mẹo: nhấn <b>Enter</b> ở ô nghĩa để lưu nhanh và nhập từ tiếp theo.</p>
+      </div>
+    </section>
+
+    <section id="tab-list" class="hidden">
+      <div class="row search"><input id="fSearch" placeholder="🔎 Tìm từ hoặc nghĩa..." /></div>
+      <div id="listBox" class="vlist"></div>
+    </section>
+
+    <section id="tab-flash" class="hidden">
+      <div class="flash-area" id="flashArea"></div>
+    </section>
+
+    <section id="tab-review">
+      <div id="reviewArea"></div>
+    </section>
+
+    <section id="tab-podcast" class="hidden">
+      <div id="podcastArea"></div>
+    </section>
+
+    <footer>Dữ liệu được lưu an toàn trên Supabase và đồng bộ giữa mọi thiết bị bạn đăng nhập.</footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+    const $ = (s) => document.querySelector(s);
+
+    const INTERVALS = [0, 1, 2, 4, 7, 15, 30];
+    const MAX_BOX = INTERVALS.length - 1;
+    const DAILY_NEW = 8;
+
+    function todayStr(d) {
+      d = d || new Date();
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    }
+    function addDays(dateStr, n) {
+      const d = new Date(dateStr + "T00:00:00");
+      d.setDate(d.getDate() + n);
+      return todayStr(d);
+    }
+    function toast(msg) {
+      const t = document.createElement("div");
+      t.className = "toast"; t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    // ---------- State + Supabase ----------
+    let sb = null, user = null;
+    const db = { words: [], streak: 0, lastReviewDay: null };
+
+    async function loadAll() {
+      const { data: words, error } = await sb.from("words").select("*").order("created", { ascending: false });
+      if (error) throw error;
+      db.words = words || [];
+      const { data: meta } = await sb.from("meta").select("*").eq("user_id", user.id).maybeSingle();
+      db.streak = (meta && meta.streak) || 0;
+      db.lastReviewDay = (meta && meta.last_review_day) || null;
+    }
+
+    async function addWord(term, mean, ex) {
+      const row = { term: term.trim(), meaning: mean.trim(), example: (ex || "").trim(), box: 0, due: todayStr(), created: todayStr(), reviews: 0, correct: 0 };
+      const { data, error } = await sb.from("words").insert(row).select().single();
+      if (error) throw error;
+      db.words.unshift(data);
+    }
+
+    async function persistGrade(w) {
+      const { error } = await sb.from("words").update({ box: w.box, due: w.due, reviews: w.reviews, correct: w.correct, last_review: w.last_review }).eq("id", w.id);
+      if (error) toast("Lỗi lưu: " + error.message);
+    }
+
+    async function deleteWord(id) {
+      const { error } = await sb.from("words").delete().eq("id", id);
+      if (error) { toast("Lỗi xoá: " + error.message); return false; }
+      db.words = db.words.filter((w) => w.id !== id);
+      return true;
+    }
+
+    async function bumpStreak() {
+      const t = todayStr();
+      if (db.lastReviewDay === t) return;
+      const yesterday = addDays(t, -1);
+      db.streak = db.lastReviewDay === yesterday ? (db.streak || 0) + 1 : 1;
+      db.lastReviewDay = t;
+      const { error } = await sb.from("meta").upsert({ user_id: user.id, streak: db.streak, last_review_day: t });
+      if (error) toast("Lỗi lưu streak: " + error.message);
+    }
+
+    // ---------- Review selection logic ----------
+    function todaySession() {
+      const t = todayStr();
+      const seen = db.words.filter((w) => w.box > 0 && w.due <= t);
+      const fresh = db.words.filter((w) => w.box === 0).slice(0, DAILY_NEW);
+      return seen.concat(fresh);
+    }
+    function grade(w, ok) {
+      w.reviews++;
+      if (ok) { w.correct++; w.box = Math.min(w.box + 1, MAX_BOX); }
+      else { w.box = 1; }
+      w.due = addDays(todayStr(), INTERVALS[w.box]);
+      w.last_review = todayStr();
+    }
+
+    // ---------- Stats ----------
+    function renderStats() {
+      $("#statTotal").textContent = db.words.length;
+      $("#statDue").textContent = todaySession().length;
+      $("#statLearned").textContent = db.words.filter((w) => w.box >= MAX_BOX).length;
+      $("#statStreak").textContent = db.streak || 0;
+    }
+
+    // ---------- Tabs ----------
+    const tabs = document.querySelectorAll("nav.tabs button");
+    tabs.forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+    function switchTab(name) {
+      if (name !== "podcast") stopPodcast();
+      tabs.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+      ["add", "list", "flash", "review", "podcast"].forEach((n) => $("#tab-" + n).classList.toggle("hidden", n !== name));
+      if (name === "list") renderList();
+      if (name === "flash") startFlash();
+      if (name === "review") renderReview();
+      if (name === "podcast") renderPodcast();
+      renderStats();
+    }
+
+    // ---------- Add ----------
+    $("#btnAdd").addEventListener("click", doAdd);
+    $("#fMean").addEventListener("keydown", (e) => { if (e.key === "Enter") doAdd(); });
+    $("#fTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#fMean").focus(); });
+    async function doAdd() {
+      const term = $("#fTerm").value, mean = $("#fMean").value, ex = $("#fEx").value;
+      if (!term.trim() || !mean.trim()) {
+        $("#addMsg").style.color = "var(--red)";
+        $("#addMsg").textContent = "Cần nhập cả từ và nghĩa.";
+        return;
+      }
+      $("#btnAdd").disabled = true;
+      try {
+        await addWord(term, mean, ex);
+        $("#fTerm").value = ""; $("#fMean").value = ""; $("#fEx").value = "";
+        $("#fTerm").focus();
+        $("#addMsg").style.color = "var(--green)";
+        $("#addMsg").textContent = "✓ Đã lưu \"" + term.trim() + "\"";
+        setTimeout(() => ($("#addMsg").textContent = ""), 2000);
+        renderStats();
+      } catch (e) {
+        $("#addMsg").style.color = "var(--red)";
+        $("#addMsg").textContent = "Lỗi: " + e.message;
+      } finally { $("#btnAdd").disabled = false; }
+    }
+
+    // ---------- List ----------
+    $("#fSearch").addEventListener("input", renderList);
+    function renderList() {
+      const q = $("#fSearch").value.trim().toLowerCase();
+      const box = $("#listBox");
+      let items = db.words.slice();
+      if (q) items = items.filter((w) => w.term.toLowerCase().includes(q) || w.meaning.toLowerCase().includes(q));
+      if (!items.length) {
+        box.innerHTML = emptyHtml("📭", db.words.length ? "Không tìm thấy từ nào." : "Chưa có từ nào. Sang tab “Thêm từ” để bắt đầu!");
+        return;
+      }
+      const t = todayStr();
+      box.innerHTML = items.map((w) => {
+        const isDue = w.due <= t;
+        const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+        return '<div class="vitem" data-id="' + w.id + '">' +
+          '<div><div class="term">' + esc(w.term) + '</div><div class="mean">' + esc(w.meaning) + '</div>' + ex + '</div>' +
+          '<div class="meta">' +
+            '<span class="pill' + (isDue ? ' due' : '') + '">' + (isDue ? 'Đến hạn' : 'Cấp ' + w.box) + '</span>' +
+            '<button class="iconbtn" data-act="del" title="Xoá">🗑</button>' +
+          '</div></div>';
+      }).join("");
+      box.querySelectorAll('[data-act="del"]').forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const id = e.target.closest(".vitem").dataset.id;
+          if (confirm("Xoá từ này?") && await deleteWord(id)) { renderList(); renderStats(); }
+        });
+      });
+    }
+
+    // ---------- Flashcard ----------
+    let flashIdx = 0, flashDeck = [];
+    function startFlash() { flashDeck = shuffle(db.words.slice()); flashIdx = 0; renderFlash(); }
+    function renderFlash() {
+      const area = $("#flashArea");
+      if (!flashDeck.length) { area.innerHTML = emptyHtml("🃏", "Chưa có từ để xem. Hãy thêm từ trước nhé!"); return; }
+      const w = flashDeck[flashIdx];
+      const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+      area.innerHTML =
+        '<div class="flashcard" id="fc"><div class="flash-inner">' +
+          '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div><div class="sub" style="margin-top:12px">Bấm để lật</div></div>' +
+          '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + '</div>' +
+        '</div></div>' +
+        '<div class="progress-txt">' + (flashIdx + 1) + ' / ' + flashDeck.length + '</div>' +
+        '<div class="grade-bar">' +
+          '<button class="btn ghost" id="fcPrev">← Trước</button>' +
+          '<button class="btn ghost" id="fcShuffle">🔀 Xáo trộn</button>' +
+          '<button class="btn" id="fcNext">Sau →</button>' +
+        '</div>';
+      $("#fc").addEventListener("click", () => $("#fc").classList.toggle("flipped"));
+      $("#fcNext").addEventListener("click", () => { flashIdx = (flashIdx + 1) % flashDeck.length; renderFlash(); });
+      $("#fcPrev").addEventListener("click", () => { flashIdx = (flashIdx - 1 + flashDeck.length) % flashDeck.length; renderFlash(); });
+      $("#fcShuffle").addEventListener("click", startFlash);
+    }
+
+    // ---------- Review ----------
+    let revDeck = [], revIdx = 0, revFlipped = false, revDone = 0;
+    function renderReview() { revDeck = todaySession(); revIdx = 0; revDone = 0; drawReviewCard(); }
+    function drawReviewCard() {
+      const area = $("#reviewArea");
+      if (!db.words.length) {
+        area.innerHTML = emptyHtml("🌱", 'Chưa có từ nào. <a class="link" id="goAdd">Thêm từ đầu tiên →</a>');
+        const g = $("#goAdd"); if (g) g.addEventListener("click", () => switchTab("add"));
+        return;
+      }
+      if (revIdx >= revDeck.length) {
+        if (revDone > 0) { bumpStreak().then(renderStats); }
+        area.innerHTML = emptyHtml("🎉",
+          revDone > 0
+            ? "Hoàn thành! Bạn đã ôn <b>" + revDone + "</b> từ hôm nay. Quay lại vào ngày mai nhé 👋"
+            : "Hôm nay không có từ nào đến hạn ôn. Nghỉ ngơi thôi! 😎");
+        return;
+      }
+      const w = revDeck[revIdx];
+      const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+      area.innerHTML =
+        '<div class="flash-area">' +
+          '<div class="progress-txt">Còn lại ' + (revDeck.length - revIdx) + ' từ · đã ôn ' + revDone + '</div>' +
+          '<div class="flashcard' + (revFlipped ? ' flipped' : '') + '" id="rc"><div class="flash-inner">' +
+            '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div><div class="sub" style="margin-top:12px">Bấm để xem nghĩa</div></div>' +
+            '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + '</div>' +
+          '</div></div>' +
+          (revFlipped
+            ? '<div class="grade-bar"><button class="btn danger" id="rBad">✗ Chưa nhớ</button><button class="btn" id="rGood" style="background:var(--green)">✓ Đã nhớ</button></div>'
+            : '<div class="grade-bar"><button class="btn" id="rShow">Hiện nghĩa</button></div>') +
+        '</div>';
+      $("#rc").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
+      if ($("#rShow")) $("#rShow").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
+      if ($("#rGood")) $("#rGood").addEventListener("click", () => answer(w, true));
+      if ($("#rBad")) $("#rBad").addEventListener("click", () => answer(w, false));
+    }
+    async function answer(w, ok) {
+      grade(w, ok);
+      revDone++; revIdx++; revFlipped = false;
+      drawReviewCard();
+      persistGrade(w);
+    }
+
+    // ---------- Podcast (đọc từ vựng hôm nay bằng giọng trình duyệt) ----------
+    const synth = window.speechSynthesis;
+    let podSegs = [], podIdx = 0, podState = "idle", podRate = 1, voices = [];
+    function loadVoices() { try { voices = synth ? synth.getVoices() : []; } catch (e) { voices = []; } }
+    if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
+    function pickVoice(pref) {
+      if (!voices.length) loadVoices();
+      return voices.find((v) => v.lang && v.lang.toLowerCase().indexOf(pref) === 0) ||
+             voices.find((v) => v.lang && v.lang.toLowerCase().indexOf(pref.slice(0, 2)) === 0) || null;
+    }
+
+    // Dựng "kịch bản" tập podcast từ danh sách ôn hôm nay
+    function buildEpisode() {
+      const words = todaySession();
+      const segs = [];
+      const d = new Date();
+      const dateVi = d.getDate() + " tháng " + (d.getMonth() + 1);
+      segs.push({ text: "Chào mừng bạn đến với podcast từ vựng ngày " + dateVi + ". Hôm nay chúng ta cùng ôn " + words.length + " từ. Bắt đầu nhé.", lang: "vi", cls: "" });
+      words.forEach((w, i) => {
+        segs.push({ text: "Từ số " + (i + 1) + ".", lang: "vi", cls: "label" });
+        segs.push({ text: w.term, lang: "en", cls: "term" });
+        segs.push({ text: "Nghĩa là: " + w.meaning + ".", lang: "vi", cls: "" });
+        if (w.example) {
+          segs.push({ text: "Ví dụ:", lang: "vi", cls: "label" });
+          segs.push({ text: w.example, lang: "en", cls: "" });
+        }
+      });
+      segs.push({ text: "Đó là toàn bộ từ vựng hôm nay. Học đều mỗi ngày nhé. Hẹn gặp lại bạn!", lang: "vi", cls: "" });
+      return segs;
+    }
+
+    const VOICES = ["alloy", "nova", "shimmer", "echo", "fable", "onyx"];
+    const STYLES = [
+      { v: "single", label: "Một người dẫn" },
+      { v: "dialogue", label: "Hai người trò chuyện" },
+      { v: "story", label: "Kể chuyện" }
+    ];
+    let aiVoice = "alloy", aiStyle = "single";
+
+    function renderPodcast() {
+      const area = $("#podcastArea");
+      const wordCount = todaySession().length;
+      if (!wordCount) { area.innerHTML = emptyHtml("🎧", "Hôm nay không có từ nào để tạo podcast. Thêm từ hoặc quay lại ngày mai nhé!"); return; }
+      area.innerHTML =
+        '<div class="card" style="margin-bottom:16px">' +
+          '<div class="pod-head">' +
+            '<div class="pod-cover">🎙️</div>' +
+            '<div><div class="pod-title">Podcast AI</div>' +
+            '<div class="pod-meta">' + wordCount + ' từ · giọng đọc tự nhiên bằng OpenAI</div></div>' +
+          '</div>' +
+          '<div class="pod-controls">' +
+            '<button class="btn" id="aiGen">🎧 Tạo audio bằng AI</button>' +
+            '<label style="margin:0;color:var(--muted)">Phong cách:</label>' +
+            '<select id="aiStyle" style="width:auto">' + STYLES.map((s) => '<option value="' + s.v + '"' + (s.v === aiStyle ? ' selected' : '') + '>' + s.label + '</option>').join("") + '</select>' +
+            '<label style="margin:0;color:var(--muted)">Giọng:</label>' +
+            '<select id="aiVoice" style="width:auto">' + VOICES.map((v) => '<option' + (v === aiVoice ? ' selected' : '') + '>' + v + '</option>').join("") + '</select>' +
+          '</div>' +
+          '<div id="aiOut"><div class="progress-txt">AI sẽ viết kịch bản rồi đọc thành audio. Lần đầu mất ~15–40 giây; các lần sau trong ngày (cùng phong cách) sẽ dùng lại bản đã tạo.</div></div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<div class="pod-head"><div class="pod-cover" style="background:linear-gradient(150deg,#3a4266,#232a48)">🔊</div>' +
+          '<div><div class="pod-title">Nghe nhanh (miễn phí)</div><div class="pod-meta">Giọng đọc sẵn của trình duyệt · không tốn phí</div></div></div>' +
+          '<div id="ttsBox"></div>' +
+        '</div>';
+      $("#aiGen").addEventListener("click", () => genAI(false));
+      $("#aiVoice").addEventListener("change", (e) => { aiVoice = e.target.value; });
+      $("#aiStyle").addEventListener("change", (e) => { aiStyle = e.target.value; });
+      mountBrowserTTS();
+    }
+
+    // ----- Podcast AI qua Edge Function -----
+    function currentWordsPayload() { return todaySession().map((w) => ({ term: w.term, meaning: w.meaning, example: w.example || "" })); }
+    function wordsHash() {
+      const s = todayStr() + "|" + aiVoice + "|" + aiStyle + "|" + todaySession().map((w) => w.id + ":" + w.box).join(",");
+      let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+      return (h >>> 0).toString(36);
+    }
+    async function genAI(force) {
+      const btn = $("#aiGen"), out = $("#aiOut");
+      btn.disabled = true;
+      out.innerHTML = '<div class="progress-txt">⏳ Đang tạo audio bằng OpenAI… có thể mất 10–30 giây.</div>';
+      try {
+        const { data, error } = await sb.functions.invoke("generate-podcast", {
+          body: { words: currentWordsPayload(), hash: wordsHash(), voice: aiVoice, style: aiStyle, force: !!force }
+        });
+        if (error) throw new Error(error.message || "Không gọi được Edge Function");
+        if (!data || data.error) throw new Error((data && data.error) || "Không có dữ liệu trả về");
+        out.innerHTML =
+          '<audio controls autoplay style="width:100%" src="' + data.url + '"></audio>' +
+          '<div class="pod-controls" style="margin-top:10px">' +
+            '<a class="btn ghost sm" href="' + data.url + '" download="podcast-tu-vung.mp3">⬇ Tải MP3</a>' +
+            '<button class="btn ghost sm" id="aiRegen">🔄 Tạo lại</button>' +
+            '<span class="progress-txt">' + (data.reused ? "♻️ Dùng lại bản đã tạo hôm nay." : "✅ Đã tạo audio mới.") + '</span>' +
+          '</div>';
+        $("#aiRegen").addEventListener("click", () => genAI(true));
+      } catch (e) {
+        out.innerHTML = '<div class="progress-txt" style="color:var(--red)">Lỗi: ' + esc(e.message) + '.<br>' +
+          'Hãy chắc chắn đã deploy Edge Function <code>generate-podcast</code> và đặt secret <code>OPENAI_API_KEY</code> (xem README). Trong lúc đó bạn vẫn nghe được bằng giọng trình duyệt bên dưới.</div>';
+      } finally { btn.disabled = false; }
+    }
+
+    // ----- Trình đọc giọng trình duyệt (dự phòng, miễn phí) -----
+    function mountBrowserTTS() {
+      const box = $("#ttsBox");
+      if (!synth) { box.innerHTML = '<div class="progress-txt">Trình duyệt này không hỗ trợ đọc giọng nói.</div>'; return; }
+      podSegs = buildEpisode(); podIdx = 0; podState = "idle";
+      const speeds = [0.8, 1, 1.2, 1.4];
+      box.innerHTML =
+        '<div class="pod-controls">' +
+          '<button class="btn pod-play" id="podPlay" title="Phát">▶</button>' +
+          '<button class="btn ghost sm" id="podPrev">⏮ Từ trước</button>' +
+          '<button class="btn ghost sm" id="podNext">Từ sau ⏭</button>' +
+          '<button class="btn ghost sm" id="podStop">⏹ Dừng</button>' +
+          '<div class="pod-speed" id="podSpeed">' + speeds.map((s) => '<button data-s="' + s + '"' + (s === podRate ? ' class="on"' : '') + '>' + s + 'x</button>').join("") + '</div>' +
+        '</div>' +
+        '<div class="progress-txt" id="podProg" style="margin-bottom:10px"></div>' +
+        '<div class="pod-script" id="podScript">' +
+          podSegs.map((s, i) => '<div class="pod-line ' + s.cls + '" data-i="' + i + '">' + esc(s.text) + '</div>').join("") +
+        '</div>';
+      $("#podPlay").addEventListener("click", togglePlay);
+      $("#podStop").addEventListener("click", stopPodcast);
+      $("#podNext").addEventListener("click", () => jump(1));
+      $("#podPrev").addEventListener("click", () => jump(-1));
+      $("#podScript").querySelectorAll(".pod-line").forEach((el) =>
+        el.addEventListener("click", () => { podIdx = +el.dataset.i; if (podState === "playing") { synth.cancel(); speakCurrent(); } else highlight(); }));
+      $("#podSpeed").querySelectorAll("button").forEach((b) =>
+        b.addEventListener("click", () => {
+          podRate = +b.dataset.s;
+          $("#podSpeed").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+          if (podState === "playing") { synth.cancel(); speakCurrent(); }
+        }));
+      highlight(); updateProg();
+    }
+
+    function togglePlay() {
+      if (podState === "playing") { synth.pause(); podState = "paused"; $("#podPlay").textContent = "▶"; }
+      else if (podState === "paused") { synth.resume(); podState = "playing"; $("#podPlay").textContent = "⏸"; }
+      else { podState = "playing"; $("#podPlay").textContent = "⏸"; speakCurrent(); }
+    }
+    function speakCurrent() {
+      if (podIdx >= podSegs.length) { stopPodcast(); return; }
+      const seg = podSegs[podIdx];
+      const u = new SpeechSynthesisUtterance(seg.text);
+      u.rate = podRate;
+      u.lang = seg.lang === "en" ? "en-US" : "vi-VN";
+      const v = pickVoice(seg.lang === "en" ? "en" : "vi");
+      if (v) u.voice = v;
+      u.onend = () => { if (podState === "playing") { podIdx++; highlight(); updateProg(); speakCurrent(); } };
+      u.onerror = () => { if (podState === "playing") { podIdx++; speakCurrent(); } };
+      highlight(); updateProg();
+      synth.speak(u);
+    }
+    function jump(dir) {
+      podIdx = Math.max(0, Math.min(podSegs.length - 1, podIdx + dir));
+      if (podState === "playing") { synth.cancel(); speakCurrent(); } else { highlight(); updateProg(); }
+    }
+    function stopPodcast() {
+      if (synth) synth.cancel();
+      podState = "idle"; podIdx = 0;
+      const p = $("#podPlay"); if (p) p.textContent = "▶";
+      highlight(); updateProg();
+    }
+    function highlight() {
+      const box = $("#podScript"); if (!box) return;
+      box.querySelectorAll(".pod-line").forEach((el, i) => el.classList.toggle("active", i === podIdx && podState !== "idle"));
+      const cur = box.querySelector(".pod-line.active");
+      if (cur) cur.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    function updateProg() {
+      const el = $("#podProg"); if (!el) return;
+      el.textContent = podState === "idle" ? "Bấm ▶ để bắt đầu nghe." : "Đang đọc đoạn " + (podIdx + 1) + " / " + podSegs.length;
+    }
+
+    // ---------- Export / Import ----------
+    $("#btnExport").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify({ words: db.words, streak: db.streak, lastReviewDay: db.lastReviewDay }, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "so-tu-vung-" + todayStr() + ".json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+    $("#btnImport").addEventListener("click", () => $("#fileImport").click());
+    $("#fileImport").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (!data.words || !Array.isArray(data.words)) throw new Error("Sai định dạng");
+        const rows = data.words.map((w) => ({
+          term: w.term, meaning: w.meaning, example: w.example || "",
+          box: w.box || 0, due: w.due || todayStr(), created: w.created || todayStr(),
+          reviews: w.reviews || 0, correct: w.correct || 0, last_review: w.last_review || w.lastReview || null
+        }));
+        const { error } = await sb.from("words").insert(rows);
+        if (error) throw error;
+        await loadAll();
+        toast("Đã nhập " + rows.length + " từ.");
+        renderStats(); renderReview();
+      } catch (err) { alert("Nhập thất bại: " + err.message); }
+      e.target.value = "";
+    });
+
+    // ---------- helpers ----------
+    function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    function emptyHtml(em, msg) { return '<div class="empty"><div class="em">' + em + '</div><div>' + msg + '</div></div>'; }
+
+    // ---------- Auth screens ----------
+    function show(screen) {
+      ["screenSetup", "screenLogin", "app"].forEach((id) => $("#" + id).classList.toggle("hidden", id !== screen));
+    }
+    function loginMsg(text, isErr) {
+      $("#loginMsg").style.color = isErr ? "var(--red)" : "var(--green)";
+      $("#loginMsg").innerHTML = text;
+    }
+    $("#loginPass").addEventListener("keydown", (e) => { if (e.key === "Enter") doAuth(); });
+    $("#btnAuth").addEventListener("click", doAuth);
+    async function doAuth() {
+      const email = $("#loginEmail").value.trim();
+      const password = $("#loginPass").value;
+      if (!email || !password) { loginMsg("Nhập cả email và mật khẩu.", true); return; }
+      $("#btnAuth").disabled = true;
+      try {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } catch (e) {
+        loginMsg("Lỗi: " + e.message + " (tài khoản do quản trị viên cấp).", true);
+      } finally { $("#btnAuth").disabled = false; }
+    }
+    $("#btnLogout").addEventListener("click", async () => { await sb.auth.signOut(); });
+
+    async function onSession(session) {
+      if (session && session.user) {
+        user = session.user;
+        $("#acctEmail").textContent = user.email;
+        show("app");
+        try { await loadAll(); } catch (e) { toast("Lỗi tải dữ liệu: " + e.message); }
+        renderStats(); renderReview();
+      } else {
+        user = null;
+        show("screenLogin");
+      }
+    }
+
+    // ---------- init ----------
+    (async function init() {
+      const URL_ = window.SUPABASE_URL, KEY = window.SUPABASE_PUBLISHABLE_KEY || window.SUPABASE_ANON_KEY;
+      if (!URL_ || !KEY || URL_.indexOf("PASTE_") === 0) { show("screenSetup"); return; }
+      if (!window.supabase) { show("screenSetup"); toast("Không tải được thư viện Supabase (cần có mạng)."); return; }
+      sb = window.supabase.createClient(URL_, KEY);
+      sb.auth.onAuthStateChange((_e, session) => onSession(session));
+      const { data } = await sb.auth.getSession();
+      onSession(data.session);
+    })();
+  })();
+  </script>
+</body>
+</html>
