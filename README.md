@@ -106,5 +106,12 @@ Chọn ngay trên giao diện tab Podcast:
 - **Hai người trò chuyện** — hội thoại qua lại (Minh & Lan). *Lưu ý: TTS chỉ có một giọng nên một người đọc cả hai vai.*
 - **Kể chuyện** — lồng các từ vào một mẩu truyện ngắn rồi tóm tắt nghĩa.
 
+### Tự điền bằng AI (Edge Function `define-word`)
+Deploy function tra nghĩa/ví dụ/từ loại:
+```bash
+supabase functions deploy define-word
+```
+Function này **dùng lại** secret `OPENAI_API_KEY` bạn đã đặt cho podcast — không cần đặt lại. Sau khi deploy, nút **✨ Tự điền** ở tab "Thêm từ" sẽ hoạt động.
+
 ### Lịch ôn (Leitner)
 Nhớ đúng → khoảng cách ôn giãn dần: **1 → 2 → 4 → 7 → 15 → 30 ngày**. Quên → về mức 1, ôn lại sớm. Từ khó xuất hiện thường xuyên, từ đã thuộc thì thưa dần.
