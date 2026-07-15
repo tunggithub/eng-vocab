@@ -104,6 +104,9 @@
     }
     .flash-face .hint { position: absolute; top: 14px; left: 16px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
     .flash-face .big { font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+    .flash-face .ipa { color: var(--muted); font-size: 15px; margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+    .flash-face .ipa .pron { background: transparent; border: 1px solid var(--border); color: var(--primary); cursor: pointer; font-size: 16px; padding: 4px 10px; border-radius: 8px; }
+    .flash-face .ipa .pron:hover { color: var(--primary-2); background: var(--surface-2); }
     .flash-face .ex { color: var(--muted); font-style: italic; margin-top: 14px; font-size: 15px; }
     .flash-back { transform: rotateY(180deg); background: linear-gradient(160deg, var(--surface-2), var(--surface)); }
     .progress-txt { color: var(--muted); font-size: 13px; }
@@ -446,7 +449,9 @@
       const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
       area.innerHTML =
         '<div class="flashcard" id="fc"><div class="flash-inner">' +
-          '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div><div class="sub" style="margin-top:12px">Bấm để lật</div></div>' +
+          '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' +
+            '<div class="ipa"><button class="pron" id="fcPron" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>' +
+            '<div class="sub" style="margin-top:12px">Bấm để lật</div></div>' +
           '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + '</div>' +
         '</div></div>' +
         '<div class="progress-txt">' + (flashIdx + 1) + ' / ' + flashDeck.length + '</div>' +
@@ -456,6 +461,8 @@
           '<button class="btn" id="fcNext">Sau →</button>' +
         '</div>';
       $("#fc").addEventListener("click", () => $("#fc").classList.toggle("flipped"));
+      const fcPron = $("#fcPron");
+      if (fcPron) fcPron.addEventListener("click", (e) => { e.stopPropagation(); playPronunciation(w); });
       $("#fcNext").addEventListener("click", () => { flashIdx = (flashIdx + 1) % flashDeck.length; renderFlash(); });
       $("#fcPrev").addEventListener("click", () => { flashIdx = (flashIdx - 1 + flashDeck.length) % flashDeck.length; renderFlash(); });
       $("#fcShuffle").addEventListener("click", startFlash);
@@ -485,7 +492,9 @@
         '<div class="flash-area">' +
           '<div class="progress-txt">Còn lại ' + (revDeck.length - revIdx) + ' từ · đã ôn ' + revDone + '</div>' +
           '<div class="flashcard' + (revFlipped ? ' flipped' : '') + '" id="rc"><div class="flash-inner">' +
-            '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div><div class="sub" style="margin-top:12px">Bấm để xem nghĩa</div></div>' +
+            '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' +
+              '<div class="ipa"><button class="pron" id="rcPron" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>' +
+              '<div class="sub" style="margin-top:12px">Bấm để xem nghĩa</div></div>' +
             '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + '</div>' +
           '</div></div>' +
           (revFlipped
@@ -493,6 +502,8 @@
             : '<div class="grade-bar"><button class="btn" id="rShow">Hiện nghĩa</button></div>') +
         '</div>';
       $("#rc").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
+      const rcPron = $("#rcPron");
+      if (rcPron) rcPron.addEventListener("click", (e) => { e.stopPropagation(); playPronunciation(w); });
       if ($("#rShow")) $("#rShow").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
       if ($("#rGood")) $("#rGood").addEventListener("click", () => answer(w, true));
       if ($("#rBad")) $("#rBad").addEventListener("click", () => answer(w, false));
