@@ -83,6 +83,9 @@
     .vitem { display: flex; align-items: flex-start; gap: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; }
     .vitem .term { font-weight: 700; font-size: 16px; }
     .vitem .mean { color: var(--muted); font-size: 14px; margin-top: 2px; }
+    .vitem .ipa { color: var(--muted); font-size: 13px; margin-top: 2px; font-family: "Segoe UI", system-ui, sans-serif; }
+    .vitem .ipa .pron { background: transparent; border: 0; color: var(--primary); cursor: pointer; font-size: 14px; padding: 0 2px; }
+    .vitem .ipa .pron:hover { color: var(--primary-2); }
     .vitem .ex { color: var(--muted); font-size: 13px; font-style: italic; margin-top: 4px; opacity: .85; }
     .vitem .meta { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
@@ -410,8 +413,9 @@
       box.innerHTML = items.map((w) => {
         const isDue = w.due <= t;
         const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+        const ipaLine = '<div class="ipa"><button class="pron" data-act="play" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>';
         return '<div class="vitem" data-id="' + w.id + '">' +
-          '<div><div class="term">' + esc(w.term) + '</div><div class="mean">' + esc(w.meaning) + '</div>' + ex + '</div>' +
+          '<div><div class="term">' + esc(w.term) + '</div><div class="mean">' + esc(w.meaning) + '</div>' + ipaLine + ex + '</div>' +
           '<div class="meta">' +
             '<span class="pill' + (isDue ? ' due' : '') + '">' + (isDue ? 'Đến hạn' : 'Cấp ' + w.box) + '</span>' +
             '<button class="iconbtn" data-act="del" title="Xoá">🗑</button>' +
@@ -421,6 +425,13 @@
         btn.addEventListener("click", async (e) => {
           const id = e.target.closest(".vitem").dataset.id;
           if (confirm("Xoá từ này?") && await deleteWord(id)) { renderList(); renderStats(); }
+        });
+      });
+      box.querySelectorAll('[data-act="play"]').forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const id = e.target.closest(".vitem").dataset.id;
+          const w = db.words.find((x) => x.id === id);
+          if (w) playPronunciation(w);
         });
       });
     }
