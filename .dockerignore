@@ -1,0 +1,10 @@
+.git
+.gitignore
+docs
+supabase
+supabase-*.sql
+README.md
+*.log
+.DS_Store
+Dockerfile
+.dockerignore

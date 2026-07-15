@@ -94,6 +94,12 @@
     .pill.due { color: var(--amber); border-color: var(--amber); }
     .iconbtn { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; }
     .iconbtn:hover { color: var(--text); background: var(--surface); }
+    .vedit { display: block; }
+    .edform { display: flex; flex-direction: column; gap: 10px; }
+    .edrow label { margin: 0 0 4px; }
+    .edrow input, .edrow textarea { padding: 9px 11px; font-size: 14px; }
+    .edcols { display: flex; gap: 10px; }
+    .edform .btnbar { margin-top: 2px; }
 
     .flash-area { display: flex; flex-direction: column; align-items: center; gap: 20px; }
     .flashcard { width: 100%; max-width: 520px; height: 300px; perspective: 1400px; cursor: pointer; }
@@ -303,6 +309,14 @@
       return true;
     }
 
+    async function updateWord(id, fields) {
+      const { data, error } = await sb.from("words").update(fields).eq("id", id).select().single();
+      if (error) { toast("Lỗi lưu: " + error.message); return false; }
+      const i = db.words.findIndex((w) => w.id === id);
+      if (i >= 0) db.words[i] = data;
+      return true;
+    }
+
     async function bumpStreak() {
       const t = todayStr();
       if (db.lastReviewDay === t) return;
@@ -453,6 +467,7 @@
     }
 
     // ---------- List ----------
+    let editingId = null;
     $("#fSearch").addEventListener("input", renderList);
     function renderList() {
       const q = $("#fSearch").value.trim().toLowerCase();
@@ -464,23 +479,11 @@
         return;
       }
       const t = todayStr();
-      box.innerHTML = items.map((w) => {
-        const isDue = w.due <= t;
-        const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
-        const noteLine = w.note ? '<div class="note">📝 ' + esc(w.note) + '</div>' : "";
-        const posPill = w.pos ? ' <span class="pos">' + esc(w.pos) + '</span>' : "";
-        const ipaLine = '<div class="ipa"><button class="pron" data-act="play" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>';
-        return '<div class="vitem" data-id="' + w.id + '">' +
-          '<div><div class="term">' + esc(w.term) + posPill + '</div><div class="mean">' + esc(w.meaning) + '</div>' + ipaLine + ex + noteLine + '</div>' +
-          '<div class="meta">' +
-            '<span class="pill' + (isDue ? ' due' : '') + '">' + (isDue ? 'Đến hạn' : 'Cấp ' + w.box) + '</span>' +
-            '<button class="iconbtn" data-act="del" title="Xoá">🗑</button>' +
-          '</div></div>';
-      }).join("");
+      box.innerHTML = items.map((w) => w.id === editingId ? editItemHtml(w) : viewItemHtml(w, t)).join("");
       box.querySelectorAll('[data-act="del"]').forEach((btn) => {
         btn.addEventListener("click", async (e) => {
           const id = e.target.closest(".vitem").dataset.id;
-          if (confirm("Xoá từ này?") && await deleteWord(id)) { renderList(); renderStats(); }
+          if (confirm("Xoá từ này?") && await deleteWord(id)) { if (editingId === id) editingId = null; renderList(); renderStats(); }
         });
       });
       box.querySelectorAll('[data-act="play"]').forEach((btn) => {
@@ -490,6 +493,68 @@
           if (w) playPronunciation(w);
         });
       });
+      box.querySelectorAll('[data-act="edit"]').forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          editingId = e.target.closest(".vitem").dataset.id;
+          renderList();
+          const box2 = $("#listBox").querySelector('.vedit .ed-term');
+          if (box2) box2.focus();
+        });
+      });
+      box.querySelectorAll('[data-act="cancel"]').forEach((btn) => {
+        btn.addEventListener("click", () => { editingId = null; renderList(); });
+      });
+      box.querySelectorAll('[data-act="save"]').forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const item = e.target.closest(".vitem");
+          const id = item.dataset.id;
+          const term = item.querySelector(".ed-term").value.trim();
+          const meaning = item.querySelector(".ed-mean").value.trim();
+          if (!term || !meaning) { toast("Cần nhập cả từ và nghĩa."); return; }
+          const fields = {
+            term: term, meaning: meaning,
+            pos: item.querySelector(".ed-pos").value.trim(),
+            ipa: item.querySelector(".ed-ipa").value.trim(),
+            example: item.querySelector(".ed-ex").value.trim(),
+            note: item.querySelector(".ed-note").value.trim()
+          };
+          btn.disabled = true;
+          if (await updateWord(id, fields)) { editingId = null; renderList(); renderStats(); toast("Đã lưu thay đổi."); }
+          else btn.disabled = false;
+        });
+      });
+    }
+    function viewItemHtml(w, t) {
+      const isDue = w.due <= t;
+      const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+      const noteLine = w.note ? '<div class="note">📝 ' + esc(w.note) + '</div>' : "";
+      const posPill = w.pos ? ' <span class="pos">' + esc(w.pos) + '</span>' : "";
+      const ipaLine = '<div class="ipa"><button class="pron" data-act="play" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>';
+      return '<div class="vitem" data-id="' + w.id + '">' +
+        '<div><div class="term">' + esc(w.term) + posPill + '</div><div class="mean">' + esc(w.meaning) + '</div>' + ipaLine + ex + noteLine + '</div>' +
+        '<div class="meta">' +
+          '<span class="pill' + (isDue ? ' due' : '') + '">' + (isDue ? 'Đến hạn' : 'Cấp ' + w.box) + '</span>' +
+          '<button class="iconbtn" data-act="edit" title="Sửa">✏️</button>' +
+          '<button class="iconbtn" data-act="del" title="Xoá">🗑</button>' +
+        '</div></div>';
+    }
+    function editItemHtml(w) {
+      return '<div class="vitem vedit" data-id="' + w.id + '">' +
+        '<div class="edform">' +
+          '<div class="edrow"><label>Từ vựng *</label><input class="ed-term" value="' + esc(w.term) + '" autocomplete="off" /></div>' +
+          '<div class="edrow"><label>Nghĩa *</label><input class="ed-mean" value="' + esc(w.meaning) + '" autocomplete="off" /></div>' +
+          '<div class="edcols">' +
+            '<div class="edrow" style="flex:0 0 38%"><label>Từ loại</label><input class="ed-pos" value="' + esc(w.pos || "") + '" placeholder="n, v, adj…" autocomplete="off" /></div>' +
+            '<div class="edrow" style="flex:1"><label>IPA</label><input class="ed-ipa" value="' + esc(w.ipa || "") + '" placeholder="/…/" autocomplete="off" /></div>' +
+          '</div>' +
+          '<div class="edrow"><label>Ví dụ</label><textarea class="ed-ex" rows="2">' + esc(w.example || "") + '</textarea></div>' +
+          '<div class="edrow"><label>Ghi chú</label><textarea class="ed-note" rows="2">' + esc(w.note || "") + '</textarea></div>' +
+          '<div class="btnbar">' +
+            '<button class="btn sm" data-act="save">💾 Lưu</button>' +
+            '<button class="btn ghost sm" data-act="cancel">Huỷ</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
     }
 
     // ---------- Flashcard ----------
