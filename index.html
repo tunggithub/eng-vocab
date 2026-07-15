@@ -468,6 +468,56 @@
              voices.find((v) => v.lang && v.lang.toLowerCase().indexOf(pref.slice(0, 2)) === 0) || null;
     }
 
+    // ---------- Phát âm + IPA (Free Dictionary API) ----------
+    // Tra cứu IPA + URL audio của một từ tiếng Anh. Không bao giờ throw:
+    // lỗi/không tìm thấy -> { ipa: "", audio: "" }.
+    async function lookupWord(term) {
+      const q = (term || "").trim().toLowerCase();
+      if (!q) return { ipa: "", audio: "" };
+      try {
+        const res = await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(q));
+        if (!res.ok) return { ipa: "", audio: "" };
+        const data = await res.json();
+        if (!Array.isArray(data)) return { ipa: "", audio: "" };
+        let ipa = "", audio = "";
+        for (const entry of data) {
+          if (!ipa && entry.phonetic) ipa = entry.phonetic;
+          const phs = Array.isArray(entry.phonetics) ? entry.phonetics : [];
+          for (const p of phs) {
+            if (!ipa && p.text) ipa = p.text;
+            if (!audio && p.audio) audio = p.audio;
+          }
+          if (ipa && audio) break;
+        }
+        return { ipa: ipa || "", audio: audio || "" };
+      } catch (e) {
+        return { ipa: "", audio: "" };
+      }
+    }
+
+    // Phát âm một từ: ưu tiên file audio thật; không có thì đọc bằng giọng trình duyệt.
+    function playPronunciation(word) {
+      if (word && word.audio) {
+        try {
+          const a = new Audio(word.audio);
+          a.play().catch(function () { speakTerm(word); });
+          return;
+        } catch (e) { /* rơi xuống fallback */ }
+      }
+      speakTerm(word);
+    }
+    function speakTerm(word) {
+      if (!synth || !word || !word.term) return;
+      try {
+        synth.cancel();
+        const u = new SpeechSynthesisUtterance(word.term);
+        u.lang = "en-US";
+        const v = pickVoice("en");
+        if (v) u.voice = v;
+        synth.speak(u);
+      } catch (e) { /* im lặng */ }
+    }
+
     // Dựng "kịch bản" tập podcast từ danh sách ôn hôm nay
     function buildEpisode() {
       const words = todaySession();
