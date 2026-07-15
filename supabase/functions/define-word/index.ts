@@ -54,11 +54,12 @@ Deno.serve(async (req) => {
     const system =
       "Bạn là trợ lý học từ vựng tiếng Anh cho người Việt. " +
       "Với một từ hoặc cụm từ tiếng Anh, hãy trả về DUY NHẤT một JSON đúng các khoá " +
-      '{"meaning":"","example":"","pos":""}. ' +
+      '{"meaning":"","example":"","pos":"","ipa":""}. ' +
       "meaning = nghĩa tiếng Việt ngắn gọn, tự nhiên của từ đó. " +
       "example = MỘT câu ví dụ tiếng Anh tự nhiên có dùng từ đó, theo sau là bản dịch tiếng Việt của chính câu đó, ngăn cách bằng ' - ' (ví dụ: \"She is very diligent. - Cô ấy rất chăm chỉ.\"). " +
-      "pos = từ loại bằng tiếng Việt (danh từ, động từ, tính từ, trạng từ, giới từ, liên từ, đại từ, thán từ); " +
-      "nếu từ có nhiều từ loại thì chọn loại phổ biến nhất; nếu không xác định được thì để chuỗi rỗng. " +
+      "pos = từ loại bằng tiếng Việt, KHÔNG giới hạn ở từ đơn: nếu là một từ thì dùng danh từ, động từ, tính từ, trạng từ, giới từ, liên từ, đại từ, thán từ (chọn loại phổ biến nhất khi có nhiều loại); " +
+      "nếu là cụm từ nhiều chữ thì dùng loại phù hợp như cụm động từ, cụm danh từ, cụm tính từ, cụm giới từ, thành ngữ, hoặc cụm từ (ví dụ: \"lean against\" -> \"cụm động từ\"); nếu không xác định được thì để chuỗi rỗng. " +
+      "ipa = phiên âm IPA của từ/cụm từ theo giọng Anh-Mỹ, đặt trong dấu gạch chéo, ví dụ \"/ˈjuːnɪk/\" hoặc \"/liːn əˈɡɛnst/\"; nếu không chắc thì để chuỗi rỗng. " +
       "Không thêm bất kỳ chữ nào ngoài JSON.";
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -86,9 +87,10 @@ Deno.serve(async (req) => {
     const meaning = String(parsed.meaning ?? "").trim();
     const example = String(parsed.example ?? "").trim();
     const pos = String(parsed.pos ?? "").trim();
+    const ipa = String(parsed.ipa ?? "").trim();
     if (!meaning && !example) return json({ error: "AI không trả về nội dung hợp lệ" }, 502);
 
-    return json({ meaning, example, pos });
+    return json({ meaning, example, pos, ipa });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

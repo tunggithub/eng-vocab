@@ -376,8 +376,15 @@
       }
       const btn = $("#btnDefine"), label = btn.textContent;
       btn.disabled = true; btn.textContent = "⏳ Đang nhờ AI…";
+      renderIpaPreview("loading");
       try {
-        const { data, error } = await sb.functions.invoke("define-word", { body: { term } });
+        // Gọi AI và tra từ điển song song. Từ điển cho audio thật + IPA chuẩn;
+        // AI cho nghĩa/ví dụ/từ loại và IPA dự phòng khi từ điển không có (cụm từ, từ hiếm).
+        const [invoked, dict] = await Promise.all([
+          sb.functions.invoke("define-word", { body: { term } }),
+          lookupWord(term),
+        ]);
+        const { data, error } = invoked;
         if (error) {
           let detail = "";
           try { const body = await error.context.json(); detail = body.error || ""; } catch (_) {}
@@ -388,10 +395,15 @@
         $("#fEx").value = data.example || "";
         pendingPos = { term: term.toLowerCase(), pos: data.pos || "" };
         renderPosBadge();
+        // Ưu tiên IPA thật từ từ điển; nếu không có thì dùng IPA do AI sinh.
+        const ipa = dict.ipa || (data.ipa || "");
+        pendingLookup = { term: term.toLowerCase(), ipa: ipa, audio: dict.audio || "" };
+        renderIpaPreview(ipa || dict.audio ? "ready" : "none");
         $("#addMsg").style.color = "var(--green)";
         $("#addMsg").textContent = "✓ AI đã điền — xem lại rồi bấm Lưu nhé.";
         setTimeout(() => ($("#addMsg").textContent = ""), 2500);
       } catch (e) {
+        renderIpaPreview(pendingLookup.ipa || pendingLookup.audio ? "ready" : "empty");
         $("#addMsg").style.color = "var(--red)";
         $("#addMsg").textContent = "Lỗi: " + e.message;
       } finally { btn.disabled = false; btn.textContent = label; }
@@ -544,7 +556,7 @@
           '<div class="edrow"><label>Từ vựng *</label><input class="ed-term" value="' + esc(w.term) + '" autocomplete="off" /></div>' +
           '<div class="edrow"><label>Nghĩa *</label><input class="ed-mean" value="' + esc(w.meaning) + '" autocomplete="off" /></div>' +
           '<div class="edcols">' +
-            '<div class="edrow" style="flex:0 0 38%"><label>Từ loại</label><input class="ed-pos" value="' + esc(w.pos || "") + '" placeholder="n, v, adj…" autocomplete="off" /></div>' +
+            '<div class="edrow" style="flex:0 0 38%"><label>Từ loại</label><input class="ed-pos" value="' + esc(w.pos || "") + '" placeholder="danh từ, cụm động từ…" autocomplete="off" /></div>' +
             '<div class="edrow" style="flex:1"><label>IPA</label><input class="ed-ipa" value="' + esc(w.ipa || "") + '" placeholder="/…/" autocomplete="off" /></div>' +
           '</div>' +
           '<div class="edrow"><label>Ví dụ</label><textarea class="ed-ex" rows="2">' + esc(w.example || "") + '</textarea></div>' +
