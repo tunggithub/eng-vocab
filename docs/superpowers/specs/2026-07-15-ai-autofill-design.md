@@ -1,7 +1,7 @@
 # Thiết kế: Tự điền nghĩa/ví dụ/từ loại bằng AI + tách ô Ghi chú
 
 **Ngày:** 2026-07-15
-**Trạng thái:** Chờ duyệt (bản cập nhật: thêm từ loại + tách ô ghi chú)
+**Trạng thái:** Đã duyệt
 
 ## Mục tiêu
 
