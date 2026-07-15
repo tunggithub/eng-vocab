@@ -205,11 +205,16 @@
           <input id="fMean" placeholder="ví dụ: có mặt ở khắp nơi" autocomplete="off" />
         </div>
         <div class="row">
-          <label for="fEx">Ví dụ / ghi chú (không bắt buộc)</label>
+          <label for="fEx">Ví dụ (AI tự điền)</label>
           <textarea id="fEx" rows="2" placeholder="ví dụ: Smartphones are now ubiquitous."></textarea>
+        </div>
+        <div class="row">
+          <label for="fNote">Ghi chú (không bắt buộc)</label>
+          <textarea id="fNote" rows="2" placeholder="ghi chú của riêng bạn…"></textarea>
         </div>
         <div class="btnbar">
           <button class="btn" id="btnAdd">Lưu từ</button>
+          <span id="posBadge" style="align-self:center"></span>
           <span id="addMsg" style="align-self:center;color:var(--green);font-size:13px;font-weight:600"></span>
         </div>
         <p class="sub" style="margin-top:16px">💡 Mẹo: nhấn <b>Enter</b> ở ô nghĩa để lưu nhanh và nhập từ tiếp theo.</p>
@@ -274,8 +279,8 @@
       db.lastReviewDay = (meta && meta.last_review_day) || null;
     }
 
-    async function addWord(term, mean, ex, ipa, audio) {
-      const row = { term: term.trim(), meaning: mean.trim(), example: (ex || "").trim(), ipa: (ipa || "").trim(), audio: (audio || "").trim(), box: 0, due: todayStr(), created: todayStr(), reviews: 0, correct: 0 };
+    async function addWord(term, mean, ex, ipa, audio, pos, note) {
+      const row = { term: term.trim(), meaning: mean.trim(), example: (ex || "").trim(), ipa: (ipa || "").trim(), audio: (audio || "").trim(), pos: (pos || "").trim(), note: (note || "").trim(), box: 0, due: todayStr(), created: todayStr(), reviews: 0, correct: 0 };
       const { data, error } = await sb.from("words").insert(row).select().single();
       if (error) throw error;
       db.words.unshift(data);
@@ -346,6 +351,13 @@
     // Cache kết quả tra cứu gần nhất cho ô Thêm từ
     let pendingLookup = { term: "", ipa: "", audio: "" };
     let lookupTimer = null;
+    // Cache từ loại do AI trả về cho ô Thêm từ (Task tự điền set)
+    let pendingPos = { term: "", pos: "" };
+    function renderPosBadge() {
+      const box = $("#posBadge");
+      if (!box) return;
+      box.innerHTML = pendingPos.pos ? '<span class="pos">' + esc(pendingPos.pos) + '</span>' : "";
+    }
 
     function renderIpaPreview(state) {
       const box = $("#ipaPreview");
@@ -375,7 +387,7 @@
     $("#fTerm").addEventListener("blur", () => { clearTimeout(lookupTimer); lookupTimer = setTimeout(doLookupPreview, 400); });
     $("#fTerm").addEventListener("input", () => { renderIpaPreview("empty"); });
     async function doAdd() {
-      const term = $("#fTerm").value, mean = $("#fMean").value, ex = $("#fEx").value;
+      const term = $("#fTerm").value, mean = $("#fMean").value, ex = $("#fEx").value, note = $("#fNote").value;
       if (!term.trim() || !mean.trim()) {
         $("#addMsg").style.color = "var(--red)";
         $("#addMsg").textContent = "Cần nhập cả từ và nghĩa.";
@@ -386,11 +398,15 @@
         let ipa = "", audio = "";
         if (pendingLookup.term === term.trim().toLowerCase()) { ipa = pendingLookup.ipa; audio = pendingLookup.audio; }
         else { const r = await lookupWord(term); ipa = r.ipa; audio = r.audio; }
-        await addWord(term, mean, ex, ipa, audio);
-        $("#fTerm").value = ""; $("#fMean").value = ""; $("#fEx").value = "";
+        let pos = "";
+        if (pendingPos.term === term.trim().toLowerCase()) pos = pendingPos.pos;
+        await addWord(term, mean, ex, ipa, audio, pos, note);
+        $("#fTerm").value = ""; $("#fMean").value = ""; $("#fEx").value = ""; $("#fNote").value = "";
         $("#fTerm").focus();
         pendingLookup = { term: "", ipa: "", audio: "" };
+        pendingPos = { term: "", pos: "" };
         renderIpaPreview("empty");
+        renderPosBadge();
         $("#addMsg").style.color = "var(--green)";
         $("#addMsg").textContent = "✓ Đã lưu \"" + term.trim() + "\"";
         setTimeout(() => ($("#addMsg").textContent = ""), 2000);
@@ -769,7 +785,7 @@
         if (!data.words || !Array.isArray(data.words)) throw new Error("Sai định dạng");
         const rows = data.words.map((w) => ({
           term: w.term, meaning: w.meaning, example: w.example || "",
-          ipa: w.ipa || "", audio: w.audio || "",
+          ipa: w.ipa || "", audio: w.audio || "", pos: w.pos || "", note: w.note || "",
           box: w.box || 0, due: w.due || todayStr(), created: w.created || todayStr(),
           reviews: w.reviews || 0, correct: w.correct || 0, last_review: w.last_review || w.lastReview || null
         }));
