@@ -109,6 +109,8 @@
     .flash-face .ipa { color: var(--muted); font-size: 15px; margin-top: 10px; display: flex; align-items: center; gap: 8px; }
     .flash-face .ipa .pron { background: transparent; border: 1px solid var(--border); color: var(--primary); cursor: pointer; font-size: 16px; padding: 4px 10px; border-radius: 8px; }
     .flash-face .ipa .pron:hover { color: var(--primary-2); background: var(--surface-2); }
+    .flash-face .pos-badge { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--primary); }
+    .flash-face .note { color: var(--muted); font-size: 14px; margin-top: 10px; }
     .flash-face .ex { color: var(--muted); font-style: italic; margin-top: 14px; font-size: 15px; }
     .flash-back { transform: rotateY(180deg); background: linear-gradient(160deg, var(--surface-2), var(--surface)); }
     .progress-txt { color: var(--muted); font-size: 13px; }
@@ -498,12 +500,14 @@
       if (!flashDeck.length) { area.innerHTML = emptyHtml("🃏", "Chưa có từ để xem. Hãy thêm từ trước nhé!"); return; }
       const w = flashDeck[flashIdx];
       const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+      const note = w.note ? '<div class="note">📝 ' + esc(w.note) + '</div>' : "";
+      const posBadge = w.pos ? '<div class="pos-badge">' + esc(w.pos) + '</div>' : "";
       area.innerHTML =
         '<div class="flashcard" id="fc"><div class="flash-inner">' +
-          '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' +
+          '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' + posBadge +
             '<div class="ipa"><button class="pron" id="fcPron" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>' +
             '<div class="sub" style="margin-top:12px">Bấm để lật</div></div>' +
-          '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + '</div>' +
+          '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + note + '</div>' +
         '</div></div>' +
         '<div class="progress-txt">' + (flashIdx + 1) + ' / ' + flashDeck.length + '</div>' +
         '<div class="grade-bar">' +
@@ -539,14 +543,16 @@
       }
       const w = revDeck[revIdx];
       const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
+      const note = w.note ? '<div class="note">📝 ' + esc(w.note) + '</div>' : "";
+      const posBadge = w.pos ? '<div class="pos-badge">' + esc(w.pos) + '</div>' : "";
       area.innerHTML =
         '<div class="flash-area">' +
           '<div class="progress-txt">Còn lại ' + (revDeck.length - revIdx) + ' từ · đã ôn ' + revDone + '</div>' +
           '<div class="flashcard' + (revFlipped ? ' flipped' : '') + '" id="rc"><div class="flash-inner">' +
-            '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' +
+            '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' + posBadge +
               '<div class="ipa"><button class="pron" id="rcPron" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>' +
               '<div class="sub" style="margin-top:12px">Bấm để xem nghĩa</div></div>' +
-            '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + '</div>' +
+            '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + note + '</div>' +
           '</div></div>' +
           (revFlipped
             ? '<div class="grade-bar"><button class="btn danger" id="rBad">✗ Chưa nhớ</button><button class="btn" id="rGood" style="background:var(--green)">✓ Đã nhớ</button></div>'
