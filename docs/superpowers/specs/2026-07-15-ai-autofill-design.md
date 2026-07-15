@@ -42,7 +42,7 @@ File mới: `supabase/functions/define-word/index.ts`, dựng theo khuôn `gener
 - Input: `{ term }` từ body. Thiếu/rỗng → `{ error: "Chưa có từ" }` status 400.
 - Gọi OpenAI chat completions:
   - model `gpt-4o-mini`, `response_format: { type: "json_object" }`, `temperature` vừa phải (~0.5).
-  - system prompt: yêu cầu trả JSON đúng khoá `{ "meaning": "...", "example": "...", "pos": "..." }`; *meaning* = nghĩa tiếng Việt ngắn gọn của từ tiếng Anh; *example* = một câu ví dụ tiếng Anh tự nhiên có dùng từ đó; *pos* = từ loại **bằng tiếng Việt** (ví dụ: "danh từ", "động từ", "tính từ", "trạng từ", "giới từ"); nếu từ có nhiều từ loại thì chọn phổ biến nhất; không xác định được thì để chuỗi rỗng.
+  - system prompt: yêu cầu trả JSON đúng khoá `{ "meaning": "...", "example": "...", "pos": "..." }`; *meaning* = nghĩa tiếng Việt ngắn gọn của từ tiếng Anh; *example* = một câu ví dụ tiếng Anh tự nhiên có dùng từ đó, theo sau là bản dịch tiếng Việt của câu đó, ngăn cách bằng " - "; *pos* = từ loại **bằng tiếng Việt** (ví dụ: "danh từ", "động từ", "tính từ", "trạng từ", "giới từ"); nếu từ có nhiều từ loại thì chọn phổ biến nhất; không xác định được thì để chuỗi rỗng.
   - user prompt: chứa `term`.
   - OpenAI lỗi (non-2xx) → `{ error: "OpenAI lỗi (<status>): <detail>" }` status 502.
 - Parse `choices[0].message.content` thành JSON; lấy `meaning`, `example`, `pos` (mặc định chuỗi rỗng nếu thiếu). Nếu cả `meaning` lẫn `example` đều rỗng → coi như lỗi 502.

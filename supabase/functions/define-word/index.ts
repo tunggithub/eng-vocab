@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       "Với một từ hoặc cụm từ tiếng Anh, hãy trả về DUY NHẤT một JSON đúng các khoá " +
       '{"meaning":"","example":"","pos":""}. ' +
       "meaning = nghĩa tiếng Việt ngắn gọn, tự nhiên của từ đó. " +
-      "example = MỘT câu ví dụ tiếng Anh tự nhiên có dùng từ đó. " +
+      "example = MỘT câu ví dụ tiếng Anh tự nhiên có dùng từ đó, theo sau là bản dịch tiếng Việt của chính câu đó, ngăn cách bằng ' - ' (ví dụ: \"She is very diligent. - Cô ấy rất chăm chỉ.\"). " +
       "pos = từ loại bằng tiếng Việt (danh từ, động từ, tính từ, trạng từ, giới từ, liên từ, đại từ, thán từ); " +
       "nếu từ có nhiều từ loại thì chọn loại phổ biến nhất; nếu không xác định được thì để chuỗi rỗng. " +
       "Không thêm bất kỳ chữ nào ngoài JSON.";
