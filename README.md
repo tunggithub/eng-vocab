@@ -17,6 +17,9 @@ Dữ liệu lưu trên **Supabase** và **đồng bộ giữa mọi thiết bị
 ### 2b. (Nếu nâng cấp app đã chạy trước đó) Thêm cột IPA & phát âm
 Nếu bạn đã tạo bảng từ trước, mở **SQL Editor**, dán nội dung file [`supabase-ipa.sql`](supabase-ipa.sql) và bấm **Run** để thêm cột `ipa` và `audio`. Người cài mới (đã chạy `supabase-schema.sql` bản mới nhất) thì bỏ qua bước này.
 
+### 2c. (Nếu nâng cấp) Thêm cột từ loại & ghi chú
+Mở **SQL Editor**, dán nội dung [`supabase-autofill.sql`](supabase-autofill.sql) và bấm **Run** để thêm cột `pos` (từ loại) và `note` (ghi chú). Người cài mới đã chạy `supabase-schema.sql` bản mới nhất thì bỏ qua.
+
 ### 3. Điền khóa vào `config.js`
 1. Vào **Project Settings → API Keys**.
 2. Copy **Project URL** và **Publishable key** (`sb_publishable_...`; project cũ hơn hiển thị là *anon public key* dạng `eyJ...` — dùng cũng được).
