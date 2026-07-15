@@ -762,6 +762,7 @@
         if (!data.words || !Array.isArray(data.words)) throw new Error("Sai định dạng");
         const rows = data.words.map((w) => ({
           term: w.term, meaning: w.meaning, example: w.example || "",
+          ipa: w.ipa || "", audio: w.audio || "",
           box: w.box || 0, due: w.due || todayStr(), created: w.created || todayStr(),
           reviews: w.reviews || 0, correct: w.correct || 0, last_review: w.last_review || w.lastReview || null
         }));
