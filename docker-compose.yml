@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    image: eng-vocab
+    container_name: eng-vocab
+    ports:
+      - "8000:8000"
+    # Tự khởi động lại khi crash, và tự chạy lại khi máy/Docker khởi động lại
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
