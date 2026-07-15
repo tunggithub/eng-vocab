@@ -420,7 +420,7 @@
     }
     $("#fTerm").addEventListener("keydown", (e) => { if (e.key === "Enter") { doLookupPreview(); $("#fMean").focus(); } });
     $("#fTerm").addEventListener("blur", () => { clearTimeout(lookupTimer); lookupTimer = setTimeout(doLookupPreview, 400); });
-    $("#fTerm").addEventListener("input", () => { renderIpaPreview("empty"); });
+    $("#fTerm").addEventListener("input", () => { renderIpaPreview("empty"); pendingPos = { term: "", pos: "" }; renderPosBadge(); });
     async function doAdd() {
       const term = $("#fTerm").value, mean = $("#fMean").value, ex = $("#fEx").value, note = $("#fNote").value;
       if (!term.trim() || !mean.trim()) {
