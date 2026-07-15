@@ -213,6 +213,7 @@
           <textarea id="fNote" rows="2" placeholder="ghi chú của riêng bạn…"></textarea>
         </div>
         <div class="btnbar">
+          <button class="btn ghost" id="btnDefine">✨ Tự điền</button>
           <button class="btn" id="btnAdd">Lưu từ</button>
           <span id="posBadge" style="align-self:center"></span>
           <span id="addMsg" style="align-self:center;color:var(--green);font-size:13px;font-weight:600"></span>
@@ -347,6 +348,36 @@
 
     // ---------- Add ----------
     $("#btnAdd").addEventListener("click", doAdd);
+    $("#btnDefine").addEventListener("click", doDefine);
+    async function doDefine() {
+      const term = $("#fTerm").value.trim();
+      if (!term) {
+        $("#addMsg").style.color = "var(--red)";
+        $("#addMsg").textContent = "Nhập từ trước đã.";
+        return;
+      }
+      const btn = $("#btnDefine"), label = btn.textContent;
+      btn.disabled = true; btn.textContent = "⏳ Đang nhờ AI…";
+      try {
+        const { data, error } = await sb.functions.invoke("define-word", { body: { term } });
+        if (error) {
+          let detail = "";
+          try { const body = await error.context.json(); detail = body.error || ""; } catch (_) {}
+          throw new Error(detail || error.message || "Không gọi được AI");
+        }
+        if (!data || data.error) throw new Error((data && data.error) || "Không có dữ liệu trả về");
+        $("#fMean").value = data.meaning || "";
+        $("#fEx").value = data.example || "";
+        pendingPos = { term: term.toLowerCase(), pos: data.pos || "" };
+        renderPosBadge();
+        $("#addMsg").style.color = "var(--green)";
+        $("#addMsg").textContent = "✓ AI đã điền — xem lại rồi bấm Lưu nhé.";
+        setTimeout(() => ($("#addMsg").textContent = ""), 2500);
+      } catch (e) {
+        $("#addMsg").style.color = "var(--red)";
+        $("#addMsg").textContent = "Lỗi: " + e.message;
+      } finally { btn.disabled = false; btn.textContent = label; }
+    }
     $("#fMean").addEventListener("keydown", (e) => { if (e.key === "Enter") doAdd(); });
     // Cache kết quả tra cứu gần nhất cho ô Thêm từ
     let pendingLookup = { term: "", ipa: "", audio: "" };
