@@ -7,12 +7,3 @@ services:
       - "3000:3000"
     # Tự khởi động lại khi crash, và tự chạy lại khi máy/Docker khởi động lại
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      # Thời gian chờ app khởi động trước khi bắt đầu tính health check là fail.
-      # Máy phần cứng thấp khởi động lâu -> để dư dả (60s). Trong khoảng này nếu
-      # check fail sẽ KHÔNG bị tính, container vẫn ở trạng thái "starting".
-      start_period: 60s
