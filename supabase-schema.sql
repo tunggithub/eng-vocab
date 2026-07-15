@@ -10,6 +10,8 @@ create table if not exists public.words (
   term        text not null,
   meaning     text not null,
   example     text default '',
+  ipa         text default '',
+  audio       text default '',
   box         int  not null default 0,
   due         date not null default current_date,
   created     date not null default current_date,
