@@ -542,7 +542,13 @@
         const { data, error } = await sb.functions.invoke("generate-podcast", {
           body: { words: currentWordsPayload(), hash: wordsHash(), voice: aiVoice, style: aiStyle, force: !!force }
         });
-        if (error) throw new Error(error.message || "Không gọi được Edge Function");
+        if (error) {
+          // supabase-js đặt error.message = "...non-2xx status code" chung chung;
+          // lỗi thật nằm trong error.context (Response body). Đọc ra để hiển thị.
+          let detail = "";
+          try { const body = await error.context.json(); detail = body.error || ""; } catch (_) {}
+          throw new Error(detail || error.message || "Không gọi được Edge Function");
+        }
         if (!data || data.error) throw new Error((data && data.error) || "Không có dữ liệu trả về");
         out.innerHTML =
           '<audio controls autoplay style="width:100%" src="' + data.url + '"></audio>' +
