@@ -334,6 +334,15 @@
       const fresh = db.words.filter((w) => w.box === 0).slice(0, DAILY_NEW);
       return seen.concat(fresh);
     }
+    // Toàn bộ kế hoạch hôm nay = các từ còn phải ôn + các từ đã ôn hôm nay.
+    // Dùng cho màn hình tổng quan để tổng số không bị tụt khi ôn xong dần.
+    function todayPlan() {
+      const t = todayStr();
+      const remaining = todaySession();
+      const remainingIds = new Set(remaining.map((w) => w.id));
+      const doneToday = db.words.filter((w) => w.last_review === t && !remainingIds.has(w.id));
+      return remaining.concat(doneToday);
+    }
     function grade(w, ok) {
       w.reviews++;
       if (ok) { w.correct++; w.box = Math.min(w.box + 1, MAX_BOX); }
@@ -601,8 +610,50 @@
     }
 
     // ---------- Review ----------
+    // revIdx = thẻ đang hiển thị; revDone = số thẻ đã chấm (mốc tiến độ).
+    // Thẻ có revIdx < revDone là đã ôn xong -> chỉ xem lại, không chấm lại.
     let revDeck = [], revIdx = 0, revFlipped = false, revDone = 0;
-    function renderReview() { revDeck = todaySession(); revIdx = 0; revDone = 0; drawReviewCard(); }
+    function renderReview() { revDeck = todaySession(); revIdx = 0; revDone = 0; revFlipped = false; drawReviewOverview(); }
+    // Màn hình tổng quan: liệt kê các từ cần học hôm nay trước khi vào lật thẻ.
+    function drawReviewOverview() {
+      const area = $("#reviewArea");
+      if (!db.words.length) {
+        area.innerHTML = emptyHtml("🌱", 'Chưa có từ nào. <a class="link" id="goAdd">Thêm từ đầu tiên →</a>');
+        const g = $("#goAdd"); if (g) g.addEventListener("click", () => switchTab("add"));
+        return;
+      }
+      const plan = todayPlan();
+      if (!plan.length) {
+        area.innerHTML = emptyHtml("😎", "Hôm nay không có từ nào đến hạn ôn. Nghỉ ngơi thôi!");
+        return;
+      }
+      const remaining = revDeck.length;            // todaySession() — các từ còn phải ôn
+      const doneCount = plan.length - remaining;   // các từ đã ôn hôm nay
+      const rows = plan.map((w, i) => {
+        const isDone = i >= remaining;             // todayPlan() xếp từ còn lại trước, đã ôn sau
+        const lvl = isDone ? "✓ Đã ôn" : (w.box === 0 ? "Từ mới" : "Cấp " + w.box);
+        const pill = isDone
+          ? '<span class="pill" style="color:var(--green);border-color:var(--green)">' + lvl + '</span>'
+          : '<span class="pill' + (w.box === 0 ? ' due' : '') + '">' + lvl + '</span>';
+        return '<div class="vitem"' + (isDone ? ' style="opacity:.6"' : '') + '><div><div class="term">' + esc(w.term) + '</div>' +
+          '<div class="mean">' + esc(w.meaning) + '</div></div>' +
+          '<div class="meta">' + pill + '</div></div>';
+      }).join("");
+      const startBtn = remaining
+        ? '<button class="btn" id="revStart">Bắt đầu ôn ' + remaining + ' từ →</button>'
+        : '<span class="pill" style="color:var(--green);border-color:var(--green)">🎉 Đã ôn xong hôm nay</span>';
+      area.innerHTML =
+        '<div class="card">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">' +
+            '<div><div style="font-size:18px;font-weight:800">📅 Hôm nay cần học ' + plan.length + ' từ</div>' +
+            '<div class="sub" style="margin:2px 0 0">Đã ôn ' + doneCount + ' / ' + plan.length + ' từ. Bấm Bắt đầu để ôn bằng thẻ lật.</div></div>' +
+            startBtn +
+          '</div>' +
+          '<div class="vlist" style="max-height:420px;overflow-y:auto">' + rows + '</div>' +
+        '</div>';
+      const sb2 = $("#revStart");
+      if (sb2) sb2.addEventListener("click", () => { revIdx = 0; revDone = 0; revFlipped = false; drawReviewCard(); });
+    }
     function drawReviewCard() {
       const area = $("#reviewArea");
       if (!db.words.length) {
@@ -612,35 +663,57 @@
       }
       if (revIdx >= revDeck.length) {
         if (revDone > 0) { bumpStreak().then(renderStats); }
-        area.innerHTML = emptyHtml("🎉",
-          revDone > 0
-            ? "Hoàn thành! Bạn đã ôn <b>" + revDone + "</b> từ hôm nay. Quay lại vào ngày mai nhé 👋"
-            : "Hôm nay không có từ nào đến hạn ôn. Nghỉ ngơi thôi! 😎");
+        const msg = revDone > 0
+          ? "Hoàn thành! Bạn đã ôn <b>" + revDone + "</b> từ hôm nay. Quay lại vào ngày mai nhé 👋"
+          : "Hôm nay không có từ nào đến hạn ôn. Nghỉ ngơi thôi! 😎";
+        const backBtn = revDeck.length
+          ? '<div class="grade-bar" style="justify-content:center;margin-top:16px"><button class="btn ghost" id="rBack">← Xem lại các từ</button></div>'
+          : '';
+        area.innerHTML = '<div class="flash-area">' + emptyHtml("🎉", msg) + backBtn + '</div>';
+        const bb = $("#rBack");
+        if (bb) bb.addEventListener("click", () => { revIdx = revDeck.length - 1; revFlipped = false; drawReviewCard(); });
         return;
       }
       const w = revDeck[revIdx];
+      const answered = revIdx < revDone;           // thẻ đã chấm -> chế độ xem lại
       const ex = w.example ? '<div class="ex">“' + esc(w.example) + '”</div>' : "";
       const note = w.note ? '<div class="note">📝 ' + esc(w.note) + '</div>' : "";
       const posBadge = w.pos ? '<div class="pos-badge">' + esc(w.pos) + '</div>' : "";
+      const prevBtn = revIdx > 0 ? '<button class="btn ghost" id="rPrev">← Trước</button>' : '';
+      let bar;
+      if (answered) {
+        bar = '<div class="grade-bar">' + prevBtn +
+          '<button class="btn" id="rFwd">Tiếp →</button></div>';
+      } else if (revFlipped) {
+        bar = '<div class="grade-bar">' + prevBtn +
+          '<button class="btn danger" id="rBad">✗ Chưa nhớ</button>' +
+          '<button class="btn" id="rGood" style="background:var(--green)">✓ Đã nhớ</button></div>';
+      } else {
+        bar = '<div class="grade-bar">' + prevBtn +
+          '<button class="btn" id="rShow">Hiện nghĩa</button></div>';
+      }
+      const prog = answered
+        ? '👀 Xem lại · từ ' + (revIdx + 1) + '/' + revDeck.length + ' · đã ôn ' + revDone
+        : 'Còn lại ' + (revDeck.length - revDone) + ' từ · đã ôn ' + revDone;
+      const frontHint = (!answered && !revFlipped) ? "Bấm để xem nghĩa" : "Bấm để lật";
       area.innerHTML =
         '<div class="flash-area">' +
-          '<div class="progress-txt">Còn lại ' + (revDeck.length - revIdx) + ' từ · đã ôn ' + revDone + '</div>' +
+          '<div class="progress-txt">' + prog + '</div>' +
           '<div class="flashcard' + (revFlipped ? ' flipped' : '') + '" id="rc"><div class="flash-inner">' +
             '<div class="flash-face"><span class="hint">Từ</span><div class="big">' + esc(w.term) + '</div>' + posBadge +
               '<div class="ipa"><button class="pron" id="rcPron" title="Nghe phát âm">🔊</button>' + (w.ipa ? '<span>' + esc(w.ipa) + '</span>' : '') + '</div>' +
-              '<div class="sub" style="margin-top:12px">Bấm để xem nghĩa</div></div>' +
+              '<div class="sub" style="margin-top:12px">' + frontHint + '</div></div>' +
             '<div class="flash-face flash-back"><span class="hint">Nghĩa</span><div class="big">' + esc(w.meaning) + '</div>' + ex + note + '</div>' +
-          '</div></div>' +
-          (revFlipped
-            ? '<div class="grade-bar"><button class="btn danger" id="rBad">✗ Chưa nhớ</button><button class="btn" id="rGood" style="background:var(--green)">✓ Đã nhớ</button></div>'
-            : '<div class="grade-bar"><button class="btn" id="rShow">Hiện nghĩa</button></div>') +
+          '</div></div>' + bar +
         '</div>';
-      $("#rc").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
+      $("#rc").addEventListener("click", () => { revFlipped = !revFlipped; drawReviewCard(); });
       const rcPron = $("#rcPron");
       if (rcPron) rcPron.addEventListener("click", (e) => { e.stopPropagation(); playPronunciation(w); });
       if ($("#rShow")) $("#rShow").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
       if ($("#rGood")) $("#rGood").addEventListener("click", () => answer(w, true));
       if ($("#rBad")) $("#rBad").addEventListener("click", () => answer(w, false));
+      if ($("#rPrev")) $("#rPrev").addEventListener("click", () => { if (revIdx > 0) { revIdx--; revFlipped = false; drawReviewCard(); } });
+      if ($("#rFwd")) $("#rFwd").addEventListener("click", () => { revIdx = Math.min(revIdx + 1, revDeck.length); revFlipped = false; drawReviewCard(); });
     }
     async function answer(w, ok) {
       grade(w, ok);
@@ -717,9 +790,9 @@
       } catch (e) { /* im lặng */ }
     }
 
-    // Dựng "kịch bản" tập podcast từ danh sách ôn hôm nay
+    // Dựng "kịch bản" tập podcast từ danh sách từ đang chọn
     function buildEpisode() {
-      const words = todaySession();
+      const words = podWords();
       const segs = [];
       const d = new Date();
       const dateVi = d.getDate() + " tháng " + (d.getMonth() + 1);
@@ -745,16 +818,100 @@
     ];
     let aiVoice = "alloy", aiStyle = "single";
 
+    // Nguồn từ cho podcast: "today" = toàn bộ kế hoạch hôm nay; "custom" = tự chọn.
+    let podSource = "today";
+    const podSelected = new Set();
+    let podQuery = "";
+    function podWords() {
+      if (podSource === "custom") return db.words.filter((w) => podSelected.has(w.id));
+      return todayPlan();
+    }
+    function filteredPodWords() {
+      const q = podQuery.trim().toLowerCase();
+      let items = db.words.slice();
+      if (q) items = items.filter((w) => w.term.toLowerCase().includes(q) || w.meaning.toLowerCase().includes(q));
+      return items;
+    }
+    function podPickerHtml() {
+      return '<div class="row search" style="margin-bottom:10px"><input id="podSearch" placeholder="🔎 Tìm từ hoặc nghĩa..." /></div>' +
+        '<div class="pod-controls" style="margin-bottom:8px">' +
+          '<button class="btn ghost sm" id="podSelAll">Chọn tất cả</button>' +
+          '<button class="btn ghost sm" id="podSelNone">Bỏ chọn</button>' +
+        '</div>' +
+        '<div class="vlist" id="podPick" style="max-height:300px;overflow-y:auto;margin-bottom:12px"></div>';
+    }
+    function renderPodPickList() {
+      const box = $("#podPick");
+      if (!box) return;
+      const items = filteredPodWords();
+      if (!items.length) { box.innerHTML = emptyHtml("🔎", db.words.length ? "Không tìm thấy từ nào." : "Chưa có từ nào."); return; }
+      box.innerHTML = items.map((w) => {
+        const checked = podSelected.has(w.id) ? " checked" : "";
+        return '<label class="vitem" style="cursor:pointer;align-items:center">' +
+          '<input type="checkbox" style="width:auto;margin:0;flex-shrink:0" data-pick="' + w.id + '"' + checked + ' />' +
+          '<div><div class="term">' + esc(w.term) + '</div><div class="mean">' + esc(w.meaning) + '</div></div>' +
+        '</label>';
+      }).join("");
+      box.querySelectorAll('input[data-pick]').forEach((cb) => {
+        cb.addEventListener("change", (e) => {
+          const id = e.target.getAttribute("data-pick");
+          const wasEmpty = podWords().length === 0;
+          if (e.target.checked) podSelected.add(id); else podSelected.delete(id);
+          // Chỉ vẽ lại toàn bộ khi vượt ranh giới 0 từ (để hiện/ẩn thẻ tạo audio).
+          if (wasEmpty !== (podWords().length === 0)) renderPodcast();
+          else updatePodCounts();
+        });
+      });
+    }
+    function updatePodCounts() {
+      const bc = $("#srcCustom"); if (bc) bc.textContent = "🎯 Chọn từ (" + podSelected.size + ")";
+      const u = $("#podUse"); if (u) u.innerHTML = "🎧 Podcast sẽ dùng <b>" + podWords().length + "</b> từ.";
+    }
+    function bindPodSourceHandlers() {
+      const bToday = $("#srcToday"), bCustom = $("#srcCustom");
+      if (bToday) bToday.addEventListener("click", () => { if (podSource !== "today") { podSource = "today"; renderPodcast(); } });
+      if (bCustom) bCustom.addEventListener("click", () => { if (podSource !== "custom") { podSource = "custom"; renderPodcast(); } });
+      if (podSource === "custom") {
+        const search = $("#podSearch");
+        if (search) { search.value = podQuery; search.addEventListener("input", (e) => { podQuery = e.target.value; renderPodPickList(); }); }
+        const selAll = $("#podSelAll"), selNone = $("#podSelNone");
+        if (selAll) selAll.addEventListener("click", () => { filteredPodWords().forEach((w) => podSelected.add(w.id)); renderPodcast(); });
+        if (selNone) selNone.addEventListener("click", () => { filteredPodWords().forEach((w) => podSelected.delete(w.id)); renderPodcast(); });
+        renderPodPickList();
+      }
+    }
+
     function renderPodcast() {
       const area = $("#podcastArea");
-      const wordCount = todaySession().length;
-      if (!wordCount) { area.innerHTML = emptyHtml("🎧", "Hôm nay không có từ nào để tạo podcast. Thêm từ hoặc quay lại ngày mai nhé!"); return; }
-      area.innerHTML =
+      const wordCount = podWords().length;
+      const todayCount = todayPlan().length;
+      const selectorCard =
+        '<div class="card" style="margin-bottom:16px">' +
+          '<div class="pod-head" style="margin-bottom:12px"><div class="pod-cover" style="background:linear-gradient(150deg,#6c8cff,#35c88a)">📝</div>' +
+          '<div><div class="pod-title">Chọn từ cho podcast</div><div class="pod-meta">Dùng từ ôn hôm nay hoặc tự chọn danh sách riêng.</div></div></div>' +
+          '<div class="pod-controls" style="margin-bottom:10px">' +
+            '<button class="btn ' + (podSource === "today" ? "" : "ghost ") + 'sm" id="srcToday">📅 Từ hôm nay (' + todayCount + ')</button>' +
+            '<button class="btn ' + (podSource === "custom" ? "" : "ghost ") + 'sm" id="srcCustom">🎯 Chọn từ (' + podSelected.size + ')</button>' +
+          '</div>' +
+          (podSource === "custom" ? podPickerHtml() : "") +
+          '<div class="progress-txt" id="podUse">🎧 Podcast sẽ dùng <b>' + wordCount + '</b> từ.</div>' +
+        '</div>';
+
+      if (!wordCount) {
+        const hint = podSource === "custom"
+          ? "Chưa chọn từ nào. Tích vào các từ bên trên để tạo podcast."
+          : "Hôm nay không có từ nào để tạo podcast. Thêm từ, chuyển sang “Chọn từ”, hoặc quay lại ngày mai nhé!";
+        area.innerHTML = selectorCard + '<div class="card">' + emptyHtml("🎧", hint) + '</div>';
+        bindPodSourceHandlers();
+        return;
+      }
+
+      area.innerHTML = selectorCard +
         '<div class="card" style="margin-bottom:16px">' +
           '<div class="pod-head">' +
             '<div class="pod-cover">🎙️</div>' +
             '<div><div class="pod-title">Podcast AI</div>' +
-            '<div class="pod-meta">' + wordCount + ' từ · giọng đọc tự nhiên bằng OpenAI</div></div>' +
+            '<div class="pod-meta">giọng đọc tự nhiên bằng OpenAI</div></div>' +
           '</div>' +
           '<div class="pod-controls">' +
             '<button class="btn" id="aiGen">🎧 Tạo audio bằng AI</button>' +
@@ -770,6 +927,7 @@
           '<div><div class="pod-title">Nghe nhanh (miễn phí)</div><div class="pod-meta">Giọng đọc sẵn của trình duyệt · không tốn phí</div></div></div>' +
           '<div id="ttsBox"></div>' +
         '</div>';
+      bindPodSourceHandlers();
       $("#aiGen").addEventListener("click", () => genAI(false));
       $("#aiVoice").addEventListener("change", (e) => { aiVoice = e.target.value; });
       $("#aiStyle").addEventListener("change", (e) => { aiStyle = e.target.value; });
@@ -777,9 +935,9 @@
     }
 
     // ----- Podcast AI qua Edge Function -----
-    function currentWordsPayload() { return todaySession().map((w) => ({ term: w.term, meaning: w.meaning, example: w.example || "" })); }
+    function currentWordsPayload() { return podWords().map((w) => ({ term: w.term, meaning: w.meaning, example: w.example || "" })); }
     function wordsHash() {
-      const s = todayStr() + "|" + aiVoice + "|" + aiStyle + "|" + todaySession().map((w) => w.id + ":" + w.box).join(",");
+      const s = todayStr() + "|" + aiVoice + "|" + aiStyle + "|" + podWords().map((w) => w.id + ":" + w.box).join(",");
       let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
       return (h >>> 0).toString(36);
     }
