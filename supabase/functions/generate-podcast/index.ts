@@ -19,7 +19,7 @@ const cors = {
 
 const VOICES = ["alloy", "nova", "shimmer", "echo", "fable", "onyx"];
 const TTS_MODEL = "gpt-4o-mini-tts"; // đổi sang "tts-1" nếu tài khoản chưa có model này
-const TEXT_MODEL = "gpt-4o-mini";    // model viết kịch bản; đổi sang model khác nếu muốn
+const TEXT_MODEL = "gpt-5.4-nano";   // model viết kịch bản; đổi sang model khác nếu muốn
 const STYLES = ["single", "dialogue", "story"];
 const MAX_CHARS = 4000;              // giới hạn đầu vào của OpenAI /audio/speech
 
@@ -62,7 +62,6 @@ async function writeScript(words: Word[], style: string, apiKey: string): Promis
     body: JSON.stringify({
       model: TEXT_MODEL,
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      temperature: 0.8,
     }),
   });
   if (!res.ok) throw new Error(`chat ${res.status}: ${(await res.text()).slice(0, 200)}`);

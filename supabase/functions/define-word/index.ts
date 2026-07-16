@@ -17,7 +17,7 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const TEXT_MODEL = "gpt-4o-mini";
+const TEXT_MODEL = "gpt-5.4-nano";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -71,7 +71,6 @@ Deno.serve(async (req) => {
           { role: "system", content: system },
           { role: "user", content: "Từ: " + word },
         ],
-        temperature: 0.5,
         response_format: { type: "json_object" },
       }),
     });
