@@ -66,3 +66,34 @@ test("meta GET default then PUT", async () => {
   const got = await j("/api/meta");
   assert.equal(got.body.streak, 5);
 });
+
+test("POST /api/words rejects missing meaning", async () => {
+  const res = await j("/api/words", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ term: "test" }),
+  });
+  assert.equal(res.status, 400);
+  assert.ok(res.body.error);
+});
+
+test("POST /api/words/bulk rejects non-array body", async () => {
+  const res = await j("/api/words/bulk", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ term: "test", meaning: "m" }),
+  });
+  assert.equal(res.status, 400);
+  assert.ok(res.body.error);
+});
+
+test("POST /api/words/bulk rejects item missing term", async () => {
+  const listBefore = await j("/api/words");
+  const countBefore = listBefore.body.length;
+  const res = await j("/api/words/bulk", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify([{ meaning: "m" }]),
+  });
+  assert.equal(res.status, 400);
+  assert.ok(res.body.error);
+  const listAfter = await j("/api/words");
+  assert.equal(listAfter.body.length, countBefore);
+});
