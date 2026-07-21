@@ -19,7 +19,8 @@ create table if not exists public.words (
   created     date not null default current_date,
   reviews     int  not null default 0,
   correct     int  not null default 0,
-  last_review date
+  last_review date,
+  learned_on  date
 );
 
 -- Bảng meta lưu chuỗi ngày ôn tập (streak) của từng user

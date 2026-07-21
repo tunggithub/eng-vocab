@@ -298,7 +298,7 @@
     }
 
     async function persistGrade(w) {
-      const { error } = await sb.from("words").update({ box: w.box, due: w.due, reviews: w.reviews, correct: w.correct, last_review: w.last_review }).eq("id", w.id);
+      const { error } = await sb.from("words").update({ box: w.box, due: w.due, reviews: w.reviews, correct: w.correct, last_review: w.last_review, learned_on: w.learned_on }).eq("id", w.id);
       if (error) toast("Lỗi lưu: " + error.message);
     }
 
@@ -331,7 +331,12 @@
     function todaySession() {
       const t = todayStr();
       const seen = db.words.filter((w) => w.box > 0 && w.due <= t);
-      const fresh = db.words.filter((w) => w.box === 0).slice(0, DAILY_NEW);
+      // Chỉ giới thiệu tối đa DAILY_NEW từ MỚI mỗi ngày. learned_on ghi lại ngày
+      // một từ rời cấp 0, nên đã học đủ hạn ngạch thì không lôi thêm từ mới ra
+      // dù ôn xong sớm — kế hoạch hôm nay cố định trong ngày.
+      const introducedToday = db.words.filter((w) => w.learned_on === t).length;
+      const quota = Math.max(0, DAILY_NEW - introducedToday);
+      const fresh = quota ? db.words.filter((w) => w.box === 0).slice(0, quota) : [];
       return seen.concat(fresh);
     }
     // Toàn bộ kế hoạch hôm nay = các từ còn phải ôn + các từ đã ôn hôm nay.
@@ -345,6 +350,8 @@
     }
     function grade(w, ok) {
       w.reviews++;
+      // box === 0 nghĩa là đây là lần ôn đầu tiên -> đánh dấu "giới thiệu hôm nay".
+      if (w.box === 0) w.learned_on = todayStr();
       if (ok) { w.correct++; w.box = Math.min(w.box + 1, MAX_BOX); }
       else { w.box = 1; }
       w.due = addDays(todayStr(), INTERVALS[w.box]);
@@ -610,10 +617,37 @@
     }
 
     // ---------- Review ----------
-    // revIdx = thẻ đang hiển thị; revDone = số thẻ đã chấm (mốc tiến độ).
-    // Thẻ có revIdx < revDone là đã ôn xong -> chỉ xem lại, không chấm lại.
+    // revIdx = thẻ đang hiển thị; revDone = số thẻ đã nhớ (mốc tiến độ).
+    // Thẻ có revIdx < revDone là đã nhớ xong -> chỉ xem lại, không chấm lại.
+    // "Chưa nhớ" không tăng revDone; từ được đẩy xuống cuối revDeck để ôn lại.
     let revDeck = [], revIdx = 0, revFlipped = false, revDone = 0;
     function renderReview() { revDeck = todaySession(); revIdx = 0; revDone = 0; revFlipped = false; drawReviewOverview(); }
+    // Reset tiến độ: đưa mọi từ về cấp 0 để học lại từ đầu (giữ từ vựng + streak).
+    function resetProgressBtnHtml() {
+      return '<div class="center" style="margin-top:18px"><button class="btn danger sm" id="revReset">🔄 Học lại từ đầu</button>' +
+        '<div class="sub" style="margin-top:6px">Đưa toàn bộ từ về cấp 0 để ôn lại từ đầu (giữ nguyên từ vựng và chuỗi ngày).</div></div>';
+    }
+    function bindResetBtn() {
+      const rr = $("#revReset");
+      if (rr) rr.addEventListener("click", confirmReset);
+    }
+    function confirmReset() {
+      if (!db.words.length) return;
+      if (!confirm("Reset tiến độ ôn tập của TẤT CẢ " + db.words.length + " từ về ban đầu?\nGiữ nguyên từ vựng và chuỗi ngày 🔥, nhưng mọi cấp độ sẽ về 0. Không thể hoàn tác.")) return;
+      resetProgress();
+    }
+    async function resetProgress() {
+      if (!db.words.length) return;
+      const t = todayStr();
+      const rr = $("#revReset"); if (rr) rr.disabled = true;
+      // RLS giới hạn theo user; "id is not null" khớp mọi từ của user trong 1 request.
+      const { error } = await sb.from("words").update({ box: 0, due: t, reviews: 0, correct: 0, last_review: null, learned_on: null }).not("id", "is", null);
+      if (error) { toast("Lỗi reset: " + error.message); if (rr) rr.disabled = false; return; }
+      db.words.forEach((w) => { w.box = 0; w.due = t; w.reviews = 0; w.correct = 0; w.last_review = null; w.learned_on = null; });
+      toast("Đã reset tiến độ. Bắt đầu học lại từ đầu!");
+      renderStats();
+      renderReview();
+    }
     // Màn hình tổng quan: liệt kê các từ cần học hôm nay trước khi vào lật thẻ.
     function drawReviewOverview() {
       const area = $("#reviewArea");
@@ -624,7 +658,8 @@
       }
       const plan = todayPlan();
       if (!plan.length) {
-        area.innerHTML = emptyHtml("😎", "Hôm nay không có từ nào đến hạn ôn. Nghỉ ngơi thôi!");
+        area.innerHTML = emptyHtml("😎", "Hôm nay không có từ nào đến hạn ôn. Nghỉ ngơi thôi!") + resetProgressBtnHtml();
+        bindResetBtn();
         return;
       }
       const remaining = revDeck.length;            // todaySession() — các từ còn phải ôn
@@ -650,9 +685,10 @@
             startBtn +
           '</div>' +
           '<div class="vlist" style="max-height:420px;overflow-y:auto">' + rows + '</div>' +
-        '</div>';
+        '</div>' + resetProgressBtnHtml();
       const sb2 = $("#revStart");
       if (sb2) sb2.addEventListener("click", () => { revIdx = 0; revDone = 0; revFlipped = false; drawReviewCard(); });
+      bindResetBtn();
     }
     function drawReviewCard() {
       const area = $("#reviewArea");
@@ -689,8 +725,7 @@
           '<button class="btn danger" id="rBad">✗ Chưa nhớ</button>' +
           '<button class="btn" id="rGood" style="background:var(--green)">✓ Đã nhớ</button></div>';
       } else {
-        bar = '<div class="grade-bar">' + prevBtn +
-          '<button class="btn" id="rShow">Hiện nghĩa</button></div>';
+        bar = prevBtn ? '<div class="grade-bar">' + prevBtn + '</div>' : '';
       }
       const prog = answered
         ? '👀 Xem lại · từ ' + (revIdx + 1) + '/' + revDeck.length + ' · đã ôn ' + revDone
@@ -709,7 +744,6 @@
       $("#rc").addEventListener("click", () => { revFlipped = !revFlipped; drawReviewCard(); });
       const rcPron = $("#rcPron");
       if (rcPron) rcPron.addEventListener("click", (e) => { e.stopPropagation(); playPronunciation(w); });
-      if ($("#rShow")) $("#rShow").addEventListener("click", () => { revFlipped = true; drawReviewCard(); });
       if ($("#rGood")) $("#rGood").addEventListener("click", () => answer(w, true));
       if ($("#rBad")) $("#rBad").addEventListener("click", () => answer(w, false));
       if ($("#rPrev")) $("#rPrev").addEventListener("click", () => { if (revIdx > 0) { revIdx--; revFlipped = false; drawReviewCard(); } });
@@ -717,7 +751,15 @@
     }
     async function answer(w, ok) {
       grade(w, ok);
-      revDone++; revIdx++; revFlipped = false;
+      revFlipped = false;
+      if (ok) {
+        // Đã nhớ: tính là đã ôn và chuyển sang từ tiếp theo.
+        revDone++; revIdx++;
+      } else {
+        // Chưa nhớ: đưa từ xuống cuối hàng đợi để ôn lại, chưa tính là đã ôn.
+        revDeck.splice(revIdx, 1);
+        revDeck.push(w);
+      }
       drawReviewCard();
       persistGrade(w);
     }
@@ -790,7 +832,7 @@
       } catch (e) { /* im lặng */ }
     }
 
-    // Dựng "kịch bản" tập podcast từ danh sách từ đang chọn
+    // Dựng "kịch bản" giải thích song ngữ (giọng trình duyệt, miễn phí) từ danh sách từ đang chọn.
     function buildEpisode() {
       const words = podWords();
       const segs = [];
@@ -920,7 +962,7 @@
             '<label style="margin:0;color:var(--muted)">Giọng:</label>' +
             '<select id="aiVoice" style="width:auto">' + VOICES.map((v) => '<option' + (v === aiVoice ? ' selected' : '') + '>' + v + '</option>').join("") + '</select>' +
           '</div>' +
-          '<div id="aiOut"><div class="progress-txt">AI sẽ viết kịch bản rồi đọc thành audio. Lần đầu mất ~15–40 giây; các lần sau trong ngày (cùng phong cách) sẽ dùng lại bản đã tạo.</div></div>' +
+          '<div id="aiOut"><div class="progress-txt">AI sẽ tạo <b>2 audio</b>: một bản giải thích từ vựng (song ngữ) và một podcast tiếng Anh nhập vai. Lần đầu mất ~30–60 giây; các lần sau trong ngày (cùng phong cách) sẽ dùng lại bản đã tạo.</div></div>' +
         '</div>' +
         '<div class="card">' +
           '<div class="pod-head"><div class="pod-cover" style="background:linear-gradient(150deg,#3a4266,#232a48)">🔊</div>' +
@@ -937,7 +979,7 @@
     // ----- Podcast AI qua Edge Function -----
     function currentWordsPayload() { return podWords().map((w) => ({ term: w.term, meaning: w.meaning, example: w.example || "" })); }
     function wordsHash() {
-      const s = todayStr() + "|" + aiVoice + "|" + aiStyle + "|" + podWords().map((w) => w.id + ":" + w.box).join(",");
+      const s = "v3|" + todayStr() + "|" + aiVoice + "|" + aiStyle + "|" + podWords().map((w) => w.id + ":" + w.box).join(",");
       let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
       return (h >>> 0).toString(36);
     }
@@ -957,12 +999,19 @@
           throw new Error(detail || error.message || "Không gọi được Edge Function");
         }
         if (!data || data.error) throw new Error((data && data.error) || "Không có dữ liệu trả về");
+        if (!data.explainUrl || !data.podcastUrl) throw new Error("Thiếu audio trả về");
+        const player = (icon, title, sub, url, file) =>
+          '<div style="margin-bottom:14px">' +
+            '<div class="pod-meta" style="margin-bottom:6px"><b>' + icon + ' ' + title + '</b> · ' + sub + '</div>' +
+            '<audio controls style="width:100%" src="' + url + '"></audio>' +
+            '<a class="btn ghost sm" style="margin-top:6px" href="' + url + '" download="' + file + '">⬇ Tải MP3</a>' +
+          '</div>';
         out.innerHTML =
-          '<audio controls autoplay style="width:100%" src="' + data.url + '"></audio>' +
-          '<div class="pod-controls" style="margin-top:10px">' +
-            '<a class="btn ghost sm" href="' + data.url + '" download="podcast-tu-vung.mp3">⬇ Tải MP3</a>' +
+          player("🗣️", "Giải thích từ vựng", "song ngữ, nắm nghĩa trước", data.explainUrl, "giai-thich-tu-vung.mp3") +
+          player("🎙️", "Podcast tiếng Anh", "nghe ngấm, nhập vai", data.podcastUrl, "podcast-tieng-anh.mp3") +
+          '<div class="pod-controls" style="margin-top:4px">' +
             '<button class="btn ghost sm" id="aiRegen">🔄 Tạo lại</button>' +
-            '<span class="progress-txt">' + (data.reused ? "♻️ Dùng lại bản đã tạo hôm nay." : "✅ Đã tạo audio mới.") + '</span>' +
+            '<span class="progress-txt">' + (data.reused ? "♻️ Dùng lại bản đã tạo hôm nay." : "✅ Đã tạo 2 audio mới.") + '</span>' +
           '</div>';
         $("#aiRegen").addEventListener("click", () => genAI(true));
       } catch (e) {
@@ -1063,7 +1112,8 @@
           term: w.term, meaning: w.meaning, example: w.example || "",
           ipa: w.ipa || "", audio: w.audio || "", pos: w.pos || "", note: w.note || "",
           box: w.box || 0, due: w.due || todayStr(), created: w.created || todayStr(),
-          reviews: w.reviews || 0, correct: w.correct || 0, last_review: w.last_review || w.lastReview || null
+          reviews: w.reviews || 0, correct: w.correct || 0, last_review: w.last_review || w.lastReview || null,
+          learned_on: w.learned_on || w.learnedOn || null
         }));
         const { error } = await sb.from("words").insert(rows);
         if (error) throw error;

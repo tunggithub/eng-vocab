@@ -32,29 +32,52 @@ function json(body: unknown, status = 200) {
 
 type Word = { term: string; meaning: string; example?: string };
 
-// Dùng model chat của OpenAI viết kịch bản podcast tự nhiên theo phong cách.
+// Dùng model chat của OpenAI viết kịch bản podcast tự nhiên theo phong cách + ngôn ngữ.
+// lang = "vi" (song ngữ giải thích) | "en" (tiếng Anh, lồng mọi từ thành truyện/hội thoại).
 // Trả về text để TTS đọc. Ném lỗi nếu gọi thất bại (caller sẽ fallback).
-async function writeScript(words: Word[], style: string, apiKey: string): Promise<string> {
+async function writeScript(words: Word[], style: string, lang: string, apiKey: string): Promise<string> {
+  const isEn = lang === "en";
   const list = words.map((w, i) =>
-    `${i + 1}. ${w.term} — ${w.meaning}${w.example ? ` (ví dụ: ${w.example})` : ""}`).join("\n");
+    isEn
+      ? `${i + 1}. ${w.term}${w.meaning ? ` (nghĩa: ${w.meaning})` : ""}`
+      : `${i + 1}. ${w.term} — ${w.meaning}${w.example ? ` (ví dụ: ${w.example})` : ""}`).join("\n");
 
-  const styleGuide: Record<string, string> = {
+  const styleGuideVi: Record<string, string> = {
     single: "Một người dẫn chương trình thân thiện, tự giải thích từng từ một cách gần gũi, kèm mẹo ghi nhớ ngắn.",
     dialogue: "Hai người dẫn trò chuyện qua lại (đặt tên là Minh và Lan). Minh hỏi, Lan giải thích. Ghi rõ tên trước mỗi lượt nói, ví dụ 'Minh:' rồi 'Lan:'.",
     story: "Lồng tất cả các từ vào một mẩu chuyện ngắn vui nhộn bằng tiếng Việt, sau đó tóm tắt lại nghĩa từng từ ở cuối.",
   };
+  const styleGuideEn: Record<string, string> = {
+    single: "A single friendly host who narrates naturally and works each word into real context, with a quick memory tip now and then.",
+    dialogue: "Two hosts named Alex and Sam in a natural back-and-forth chat. Prefix every turn with the speaker's name, e.g. 'Alex:' then 'Sam:'.",
+    story: "Weave all of the words into one short, fun, coherent story.",
+  };
 
-  const system =
+  const systemVi =
     "Bạn là biên kịch cho một podcast học từ vựng tiếng Anh dành cho người Việt. " +
     "Viết kịch bản BẰNG TIẾNG VIỆT để đọc thành tiếng, nhưng GIỮ NGUYÊN các từ vựng tiếng Anh bằng tiếng Anh. " +
     "Văn nói tự nhiên, ấm áp, dễ nghe. Với mỗi từ: nêu từ, nghĩa, cách dùng và một ví dụ. " +
     "Tuyệt đối KHÔNG dùng markdown, gạch đầu dòng, ký hiệu đặc biệt hay emoji — chỉ văn xuôi để đọc. " +
     "Độ dài khoảng 250–450 từ. Có lời chào mở đầu và lời kết động viên.";
+  const systemEn =
+    "You are a scriptwriter for an English-learning podcast aimed at Vietnamese learners. " +
+    "Write the ENTIRE script in natural, spoken English only — do NOT use any Vietnamese. " +
+    "Weave ALL of the given vocabulary words naturally into the content so that every single word is actually used in context at least once. " +
+    "Keep it engaging and easy to follow for intermediate learners, at a comfortable listening pace. " +
+    "Do NOT use markdown, bullet points, special symbols, or emoji — only prose to be read aloud. " +
+    "Length about 250–450 words. Include a short welcome and an encouraging closing.";
 
-  const user =
-    `Phong cách: ${styleGuide[style] || styleGuide.single}\n\n` +
+  const userVi =
+    `Phong cách: ${styleGuideVi[style] || styleGuideVi.single}\n\n` +
     `Danh sách ${words.length} từ hôm nay:\n${list}\n\n` +
     "Hãy viết kịch bản hoàn chỉnh, chỉ trả về phần lời thoại để đọc.";
+  const userEn =
+    `Style: ${styleGuideEn[style] || styleGuideEn.single}\n\n` +
+    `The ${words.length} vocabulary words to include today:\n${list}\n\n` +
+    "Write the complete script. Return only the spoken lines, nothing else.";
+
+  const system = isEn ? systemEn : systemVi;
+  const user = isEn ? userEn : userVi;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -72,10 +95,20 @@ async function writeScript(words: Word[], style: string, apiKey: string): Promis
 }
 
 // Kịch bản dự phòng (ghép template) khi bước viết bằng AI thất bại.
-function buildScript(words: Word[]): string {
+function buildScript(words: Word[], lang: string): string {
+  const parts: string[] = [];
+  if (lang === "en") {
+    parts.push(`Welcome to today's English vocabulary podcast. Today we will practice ${words.length} words. Let's begin.`);
+    words.forEach((w, i) => {
+      parts.push(`Word ${i + 1}: ${w.term}.`);
+      const enEx = (w.example || "").split(" - ")[0].trim(); // ví dụ lưu dạng "English. - Tiếng Việt"
+      if (enEx) parts.push(`For example: ${enEx}.`);
+    });
+    parts.push("That's all for today. Keep practicing every day. See you next time!");
+    return parts.join("\n");
+  }
   const d = new Date();
   const dateVi = `${d.getUTCDate()} tháng ${d.getUTCMonth() + 1}`;
-  const parts: string[] = [];
   parts.push(`Chào mừng bạn đến với podcast từ vựng ngày ${dateVi}. Hôm nay chúng ta cùng ôn ${words.length} từ. Bắt đầu nhé.`);
   words.forEach((w, i) => {
     parts.push(`Từ số ${i + 1}. ${w.term}.`);
@@ -112,47 +145,57 @@ Deno.serve(async (req) => {
     const useStyle = STYLES.includes(style) ? style : "single";
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const path = `${user.id}/latest.mp3`; // đường dẫn cố định -> luôn ghi đè
+    // Hai file cố định (luôn ghi đè): giải thích song ngữ + podcast tiếng Anh.
+    const explainPath = `${user.id}/explain.mp3`;
+    const podcastPath = `${user.id}/podcast.mp3`;
+    const signUrl = (p: string) => admin.storage.from("podcasts").createSignedUrl(p, 3600);
 
-    // 2) Nếu bộ từ không đổi và không ép tạo lại -> dùng lại file cũ
+    // 2) Nếu bộ từ không đổi và không ép tạo lại -> dùng lại cả 2 file cũ
     if (!force && hash) {
       const { data: row } = await admin.from("podcasts")
         .select("word_hash").eq("user_id", user.id).maybeSingle();
       if (row && row.word_hash === hash) {
-        const { data: signed } = await admin.storage.from("podcasts").createSignedUrl(path, 3600);
-        if (signed?.signedUrl) return json({ url: signed.signedUrl, reused: true });
+        const [ex, pod] = await Promise.all([signUrl(explainPath), signUrl(podcastPath)]);
+        if (ex.data?.signedUrl && pod.data?.signedUrl) {
+          return json({ explainUrl: ex.data.signedUrl, podcastUrl: pod.data.signedUrl, reused: true });
+        }
       }
     }
 
-    // 3a) Viết kịch bản bằng AI (fallback về template nếu lỗi)
-    let script = "";
-    try { script = await writeScript(words, useStyle, openaiKey); } catch (_e) { script = ""; }
-    if (!script) script = buildScript(words);
-    if (script.length > MAX_CHARS) script = script.slice(0, MAX_CHARS);
+    // 3) Viết kịch bản (AI, fallback template nếu lỗi) — vi = giải thích, en = nghe ngấm.
+    const makeScript = async (lang: string): Promise<string> => {
+      let s = "";
+      try { s = await writeScript(words, useStyle, lang, openaiKey); }
+      catch (e) { console.error(`[podcast] writeScript(${lang}) failed:`, String(e)); s = ""; }
+      if (!s) s = buildScript(words, lang);
+      return s.length > MAX_CHARS ? s.slice(0, MAX_CHARS) : s;
+    };
 
-    // 3b) Chuyển kịch bản thành giọng nói (OpenAI TTS)
-    const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: TTS_MODEL, voice: useVoice, input: script, response_format: "mp3" }),
-    });
-    if (!ttsRes.ok) {
-      const detail = await ttsRes.text();
-      return json({ error: `OpenAI lỗi (${ttsRes.status}): ${detail.slice(0, 300)}` }, 502);
-    }
-    const audio = new Uint8Array(await ttsRes.arrayBuffer());
+    // 4) TTS + ghi đè Storage; trả null nếu ok hoặc chuỗi lỗi.
+    const synth = async (script: string, path: string): Promise<string | null> => {
+      const ttsRes = await fetch("https://api.openai.com/v1/audio/speech", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: TTS_MODEL, voice: useVoice, input: script, response_format: "mp3" }),
+      });
+      if (!ttsRes.ok) return `OpenAI lỗi (${ttsRes.status}): ${(await ttsRes.text()).slice(0, 300)}`;
+      const audio = new Uint8Array(await ttsRes.arrayBuffer());
+      const { error: upErr } = await admin.storage.from("podcasts")
+        .upload(path, audio, { contentType: "audio/mpeg", upsert: true });
+      return upErr ? ("Lưu file lỗi: " + upErr.message) : null;
+    };
 
-    // 4) Ghi đè vào Storage
-    const { error: upErr } = await admin.storage.from("podcasts")
-      .upload(path, audio, { contentType: "audio/mpeg", upsert: true });
-    if (upErr) return json({ error: "Lưu file lỗi: " + upErr.message }, 500);
+    const [scriptVi, scriptEn] = await Promise.all([makeScript("vi"), makeScript("en")]);
+    const [errVi, errEn] = await Promise.all([synth(scriptVi, explainPath), synth(scriptEn, podcastPath)]);
+    if (errVi) return json({ error: "Giải thích: " + errVi }, 502);
+    if (errEn) return json({ error: "Podcast: " + errEn }, 502);
 
-    // 5) Cập nhật hash + trả signed URL
+    // 5) Cập nhật hash + trả signed URL cho cả 2 file
     await admin.from("podcasts").upsert({
       user_id: user.id, word_hash: hash ?? null, updated_at: new Date().toISOString(),
     });
-    const { data: signed } = await admin.storage.from("podcasts").createSignedUrl(path, 3600);
-    return json({ url: signed?.signedUrl, reused: false });
+    const [ex, pod] = await Promise.all([signUrl(explainPath), signUrl(podcastPath)]);
+    return json({ explainUrl: ex.data?.signedUrl, podcastUrl: pod.data?.signedUrl, reused: false });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
