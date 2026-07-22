@@ -1,6 +1,6 @@
 export const VOICES = ["alloy", "nova", "shimmer", "echo", "fable", "onyx"];
 export const STYLES = ["single", "dialogue", "story"];
-export const TEXT_MODEL = "gpt-5.4-nano";
+export const TEXT_MODEL = "gpt-5.5";
 export const TTS_MODEL = "gpt-4o-mini-tts";
 export const MAX_CHARS = 4000;
 

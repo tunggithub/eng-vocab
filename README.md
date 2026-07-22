@@ -36,6 +36,15 @@ và `/audio/speech`. Bỏ trống thì dùng thẳng `https://api.openai.com/v1`
 OPENAI_BASE_URL=http://localhost:8080/v1
 ```
 
+Nếu proxy đó không có endpoint đọc giọng (`/audio/speech`), phần podcast AI có thể
+dùng nhà cung cấp/khoá riêng cho TTS: đặt `OPENAI_TTS_API_KEY` (và tuỳ chọn
+`OPENAI_TTS_BASE_URL`). Khi đặt `OPENAI_TTS_API_KEY`, TTS mặc định gọi thẳng
+`https://api.openai.com/v1`; nếu bỏ trống thì TTS dùng lại khoá/URL chat ở trên.
+```dotenv
+OPENAI_TTS_API_KEY=sk-...            # khoá OpenAI thật, có quyền TTS
+OPENAI_TTS_BASE_URL=https://api.openai.com/v1
+```
+
 ## Chuyển dữ liệu từ Supabase cũ (một lần)
 Nếu bạn từng dùng bản Supabase và muốn mang dữ liệu về:
 ```bash
