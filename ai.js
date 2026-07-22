@@ -1,13 +1,17 @@
 export const VOICES = ["alloy", "nova", "shimmer", "echo", "fable", "onyx"];
 export const STYLES = ["single", "dialogue", "story"];
-export const TEXT_MODEL = "gpt-5.4-nano";
+export const TEXT_MODEL = "gpt-5.5";
 export const TTS_MODEL = "gpt-4o-mini-tts";
 export const MAX_CHARS = 4000;
 
-const CHAT_URL = "https://api.openai.com/v1/chat/completions";
-const SPEECH_URL = "https://api.openai.com/v1/audio/speech";
+// Base URL for the OpenAI-compatible API. Override via OPENAI_BASE_URL to point
+// at a local proxy or gateway (e.g. "http://localhost:8080/v1"). Must include the
+// version prefix; endpoints append "/chat/completions" and "/audio/speech".
+export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+const chatUrl = (baseUrl) => `${(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "")}/chat/completions`;
+const speechUrl = (baseUrl) => `${(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, "")}/audio/speech`;
 
-export async function defineWord(term, apiKey, fetchImpl = fetch) {
+export async function defineWord(term, apiKey, fetchImpl = fetch, baseUrl = DEFAULT_BASE_URL) {
   const system =
     "Bạn là trợ lý học từ vựng tiếng Anh cho người Việt. " +
     "Với một từ hoặc cụm từ tiếng Anh, hãy trả về DUY NHẤT một JSON đúng các khoá " +
@@ -18,7 +22,7 @@ export async function defineWord(term, apiKey, fetchImpl = fetch) {
     "nếu là cụm từ nhiều chữ thì dùng loại phù hợp như cụm động từ, cụm danh từ, cụm tính từ, cụm giới từ, thành ngữ, hoặc cụm từ (ví dụ: \"lean against\" -> \"cụm động từ\"); nếu không xác định được thì để chuỗi rỗng. " +
     "ipa = phiên âm IPA của từ/cụm từ theo giọng Anh-Mỹ, đặt trong dấu gạch chéo, ví dụ \"/ˈjuːnɪk/\" hoặc \"/liːn əˈɡɛnst/\"; nếu không chắc thì để chuỗi rỗng. " +
     "Không thêm bất kỳ chữ nào ngoài JSON.";
-  const res = await fetchImpl(CHAT_URL, {
+  const res = await fetchImpl(chatUrl(baseUrl), {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -39,7 +43,7 @@ export async function defineWord(term, apiKey, fetchImpl = fetch) {
   return { meaning, example, pos, ipa };
 }
 
-export async function writeScript(words, style, lang, apiKey, fetchImpl = fetch) {
+export async function writeScript(words, style, lang, apiKey, fetchImpl = fetch, baseUrl = DEFAULT_BASE_URL) {
   const isEn = lang === "en";
   const list = words.map((w, i) =>
     isEn
@@ -76,7 +80,7 @@ export async function writeScript(words, style, lang, apiKey, fetchImpl = fetch)
     `Style: ${styleGuideEn[style] || styleGuideEn.single}\n\n` +
     `The ${words.length} vocabulary words to include today:\n${list}\n\n` +
     "Write the complete script. Return only the spoken lines, nothing else.";
-  const res = await fetchImpl(CHAT_URL, {
+  const res = await fetchImpl(chatUrl(baseUrl), {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -115,8 +119,8 @@ export function buildScript(words, lang) {
   return parts.join("\n");
 }
 
-export async function synthTTS(script, voice, apiKey, fetchImpl = fetch) {
-  const res = await fetchImpl(SPEECH_URL, {
+export async function synthTTS(script, voice, apiKey, fetchImpl = fetch, baseUrl = DEFAULT_BASE_URL) {
+  const res = await fetchImpl(speechUrl(baseUrl), {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: TTS_MODEL, voice, input: script, response_format: "mp3" }),
