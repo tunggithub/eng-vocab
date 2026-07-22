@@ -1,0 +1,20 @@
+{
+  "name": "eng-vocab",
+  "version": "1.0.0",
+  "description": "Local vocabulary flashcard app (SQLite + Express + OpenAI)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "pull": "node scripts/pull-from-supabase.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.48.1"
+  }
+}

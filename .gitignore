@@ -1,7 +1,7 @@
-# Bỏ comment dòng dưới nếu bạn KHÔNG muốn commit khóa Supabase
-# (anon key vốn an toàn để công khai, nhưng nếu muốn giữ riêng thì bật lên)
-# config.js
-
+node_modules/
+.env
+/data/*
+!/data/.gitkeep
 *.log
 .DS_Store
 .vercel

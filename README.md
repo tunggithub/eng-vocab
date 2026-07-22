@@ -1,117 +1,59 @@
-# Sổ Từ Vựng — Flashcard & Ôn tập mỗi ngày
+# Sổ Từ Vựng — chạy cục bộ
 
-Web app học từ vựng: nhập từ, lật flashcard kiểu Quizlet, và **mỗi ngày tự chọn ra vài từ để ôn tập** theo cơ chế lặp ngắt quãng (spaced repetition — Leitner).
+Web app học từ vựng: nhập từ, lật flashcard, ôn tập theo cơ chế lặp ngắt quãng (Leitner),
+nghe podcast (giọng trình duyệt miễn phí hoặc giọng AI của OpenAI). Chạy hoàn toàn trên
+máy bạn: backend Node + SQLite, không cần Supabase hay Vercel. Dùng cho **một người**,
+không có đăng nhập.
 
-Dữ liệu lưu trên **Supabase** và **đồng bộ giữa mọi thiết bị** — sửa ở máy này, máy khác thấy ngay. Có đăng nhập bằng email (magic link), mỗi người chỉ thấy từ của mình.
+## Yêu cầu
+- Node.js 24+ (hoặc Docker).
+- (Tuỳ chọn) Khoá OpenAI cho tính năng tự điền nghĩa & podcast AI.
 
-## Cài đặt (một lần, ~5 phút)
+## Chạy bằng npm
+```bash
+npm install
+cp .env.example .env      # rồi điền OPENAI_API_KEY nếu muốn dùng AI
+npm start                 # mở http://localhost:3000
+```
+Dữ liệu lưu ở `data/vocab.db`, audio ở `data/audio/`. Sao lưu = copy thư mục `data/`.
 
-### 1. Tạo project Supabase (miễn phí)
-1. Vào https://supabase.com → tạo tài khoản → **New project**.
-2. Đợi project khởi tạo xong.
+## Chạy bằng Docker
+```bash
+export OPENAI_API_KEY=sk-...   # hoặc đặt trong .env
+docker compose up -d --build   # http://localhost:3000
+```
+Thư mục `./data` được mount làm volume nên dữ liệu không mất khi build lại.
 
-### 2. Tạo bảng dữ liệu
-1. Mở **SQL Editor** trong Supabase Dashboard.
-2. Dán toàn bộ nội dung file [`supabase-schema.sql`](supabase-schema.sql) và bấm **Run**.
+## Tính năng AI (tuỳ chọn)
+Đặt `OPENAI_API_KEY` trong `.env` (hoặc biến môi trường). Khoá chỉ nằm ở server, không lộ
+ra frontend. Model dùng: `gpt-5.4-nano` (viết nghĩa/kịch bản) và `gpt-4o-mini-tts` (đọc).
+Đổi model trong `ai.js`. Không có khoá thì các nút AI báo lỗi nhẹ nhàng; phần còn lại vẫn chạy.
 
-### 2b. (Nếu nâng cấp app đã chạy trước đó) Thêm cột IPA & phát âm
-Nếu bạn đã tạo bảng từ trước, mở **SQL Editor**, dán nội dung file [`supabase-ipa.sql`](supabase-ipa.sql) và bấm **Run** để thêm cột `ipa` và `audio`. Người cài mới (đã chạy `supabase-schema.sql` bản mới nhất) thì bỏ qua bước này.
-
-### 2c. (Nếu nâng cấp) Thêm cột từ loại & ghi chú
-Mở **SQL Editor**, dán nội dung [`supabase-autofill.sql`](supabase-autofill.sql) và bấm **Run** để thêm cột `pos` (từ loại) và `note` (ghi chú). Người cài mới đã chạy `supabase-schema.sql` bản mới nhất thì bỏ qua.
-
-### 3. Điền khóa vào `config.js`
-1. Vào **Project Settings → API Keys**.
-2. Copy **Project URL** và **Publishable key** (`sb_publishable_...`; project cũ hơn hiển thị là *anon public key* dạng `eyJ...` — dùng cũng được).
-3. Mở [`config.js`](config.js), dán vào:
-   ```js
-   window.SUPABASE_URL             = "https://xxxxx.supabase.co";
-   window.SUPABASE_PUBLISHABLE_KEY = "sb_publishable_...";
-   ```
-   > Publishable key được thiết kế để lộ ra ở frontend — an toàn. Dữ liệu vẫn được bảo vệ bởi Row Level Security.
-
-### 4. Tắt đăng ký tự do — chỉ admin tạo tài khoản (BẮT BUỘC)
-App **không có** nút đăng ký; người dùng chỉ đăng nhập bằng tài khoản được cấp sẵn. Nhưng phải chặn thêm ở phía Supabase, nếu không kẻ khác vẫn gọi thẳng API đăng ký được:
-
-1. Vào **Authentication → Sign In / Providers** (hoặc **Authentication → Settings**).
-2. **Tắt "Allow new users to sign up"** (Disable signup). → Từ giờ mọi lời gọi `signUp` đều bị từ chối.
-
-**Cách admin tạo tài khoản cho người dùng:**
-- Vào **Authentication → Users → Add user**.
-- Nhập email + mật khẩu, tích **Auto Confirm User** để họ đăng nhập được ngay.
-- Gửi email + mật khẩu đó cho người dùng. Họ đăng nhập là dùng được, dữ liệu tách biệt theo tài khoản.
-
-## Chạy
-
-- **Thử tại máy:** cần chạy qua HTTP (không mở trực tiếp `file://` vì đăng nhập cần domain hợp lệ):
-  ```bash
-  python3 -m http.server 8000
-  # rồi mở http://localhost:8000
-  ```
-- **Đưa lên online (miễn phí):** đẩy 3 file (`index.html`, `config.js`, và không cần `supabase-schema.sql`) lên **Netlify**, **Vercel**, hoặc **GitHub Pages**. Kéo-thả thư mục vào Netlify Drop là xong.
+## Chuyển dữ liệu từ Supabase cũ (một lần)
+Nếu bạn từng dùng bản Supabase và muốn mang dữ liệu về:
+```bash
+SUPABASE_URL="https://xxxx.supabase.co" SUPABASE_KEY="sb_publishable_..." \
+  node scripts/pull-from-supabase.js
+```
+Script sẽ hỏi email + mật khẩu tài khoản Supabase, rồi nạp toàn bộ từ + streak vào
+`data/vocab.db`. (Cần project Supabase cũ còn hoạt động.)
 
 ## Cách hoạt động
+- **➕ Thêm từ** — nhập *từ · nghĩa · ví dụ*; nút "nhờ AI" tự điền nghĩa/ví dụ/IPA/từ loại.
+- **📅 Ôn hôm nay** — chọn từ đến hạn + tối đa vài từ mới/ngày; chấm *Đã nhớ / Chưa nhớ*.
+- **🎧 Podcast** — nghe nhanh bằng giọng trình duyệt, hoặc tạo 2 file MP3 bằng OpenAI
+  (giải thích song ngữ + podcast tiếng Anh).
+- **🃏 Flashcard**, **📚 Danh sách**, **⬇ Xuất / ⬆ Nhập** (JSON).
 
-- **➕ Thêm từ** — nhập *từ · nghĩa · ví dụ*. Enter để lưu nhanh liên tục.
-- **📅 Ôn hôm nay** — tự chọn các từ **đến hạn** + tối đa 8 từ mới/ngày. Lật thẻ rồi chấm *Đã nhớ / Chưa nhớ*.
-- **🎧 Podcast** — dựng một "tập podcast" đọc to các từ hôm nay (lời dẫn tiếng Việt + từ giọng Anh + nghĩa + ví dụ), có phát/tạm dừng/chuyển từ và chỉnh tốc độ. Dùng giọng đọc sẵn của trình duyệt, không cần cài gì thêm.
-- **🃏 Flashcard** — lật thẻ tự do như Quizlet (không tính điểm).
-- **📚 Danh sách** — xem, tìm, xoá từ.
-- **⬇ Xuất / ⬆ Nhập** — sao lưu ra JSON và nạp lại (nạp = thêm vào tài khoản hiện tại).
-
-## Podcast AI bằng OpenAI (tùy chọn)
-
-Tab **🎧 Podcast** có 2 chế độ:
-- **Nghe nhanh (miễn phí)** — dùng giọng trình duyệt, chạy ngay, không cần cài gì.
-- **Podcast AI** — giọng đọc tự nhiên của OpenAI, sinh ra file MP3 tải được. Cần thiết lập một lần như dưới đây.
-
-> 🔑 Khóa OpenAI **không nằm ở frontend**. Nó được giữ bí mật trong một Edge Function của Supabase; trình duyệt chỉ gọi hàm đó.
-
-### Cài đặt (một lần)
-
-1. **Tạo bảng + bucket:** chạy [`supabase-podcast.sql`](supabase-podcast.sql) trong **SQL Editor**.
-
-2. **Cài Supabase CLI** (nếu chưa có): https://supabase.com/docs/guides/cli
-   ```bash
-   supabase login
-   supabase link --project-ref <PROJECT_REF>   # lấy ở URL dashboard hoặc Project Settings
-   ```
-
-3. **Đặt khóa OpenAI làm secret** (lấy khóa ở https://platform.openai.com/api-keys):
-   ```bash
-   supabase secrets set OPENAI_API_KEY=sk-...
-   ```
-
-4. **Deploy Edge Function:**
-   ```bash
-   supabase functions deploy generate-podcast
-   ```
-
-Xong! Vào tab Podcast → **Tạo audio bằng AI**.
-
-### Cách tiết kiệm bộ nhớ & chi phí
-- **Ghi đè:** mỗi user chỉ có đúng 1 file `<user_id>/latest.mp3`, bản mới đè bản cũ → Storage không phình to, không cần job dọn dẹp.
-- **Dùng lại:** nếu bộ từ hôm nay chưa đổi, app phát lại file cũ, không gọi lại OpenAI (khỏi tốn phí). Bấm **🔄 Tạo lại** để ép sinh mới.
-- Chi phí OpenAI rất nhỏ (khoảng vài xu / ngày). Muốn đổi model, sửa các hằng số trong [`supabase/functions/generate-podcast/index.ts`](supabase/functions/generate-podcast/index.ts).
-
-### Hai model được dùng
-| Bước | Model | Hằng số | Ghi chú |
-|---|---|---|---|
-| Viết kịch bản | `gpt-4o-mini` | `TEXT_MODEL` | AI viết lời dẫn tự nhiên; lỗi thì tự dùng template dự phòng |
-| Đọc thành audio | `gpt-4o-mini-tts` | `TTS_MODEL` | Đổi sang `tts-1` nếu tài khoản chưa có |
-
-### Phong cách kịch bản
-Chọn ngay trên giao diện tab Podcast:
-- **Một người dẫn** — giải thích từng từ gần gũi, có mẹo nhớ.
-- **Hai người trò chuyện** — hội thoại qua lại (Minh & Lan). *Lưu ý: TTS chỉ có một giọng nên một người đọc cả hai vai.*
-- **Kể chuyện** — lồng các từ vào một mẩu truyện ngắn rồi tóm tắt nghĩa.
-
-### Tự điền bằng AI (Edge Function `define-word`)
-Deploy function tra nghĩa/ví dụ/từ loại:
+## Kiểm thử
 ```bash
-supabase functions deploy define-word
+npm test
 ```
-Function này **dùng lại** secret `OPENAI_API_KEY` bạn đã đặt cho podcast — không cần đặt lại. Sau khi deploy, nút **✨ Tự điền** ở tab "Thêm từ" sẽ hoạt động.
 
-### Lịch ôn (Leitner)
-Nhớ đúng → khoảng cách ôn giãn dần: **1 → 2 → 4 → 7 → 15 → 30 ngày**. Quên → về mức 1, ôn lại sớm. Từ khó xuất hiện thường xuyên, từ đã thuộc thì thưa dần.
+## Cấu trúc
+- `server.js` — Express: phục vụ frontend + REST API.
+- `db.js` — SQLite (bảng `words`, `meta`, `podcast`).
+- `ai.js`, `routes/ai.js` — gọi OpenAI (define-word, generate-podcast).
+- `routes/words.js`, `routes/meta.js` — CRUD.
+- `index.html`, `api.js` — frontend.
+- `scripts/pull-from-supabase.js` — công cụ chuyển dữ liệu một lần.

@@ -1,10 +1,7 @@
+node_modules
 .git
-.gitignore
-docs
-supabase
-supabase-*.sql
-README.md
+data
+.env
 *.log
-.DS_Store
-Dockerfile
-.dockerignore
+docs
+test
