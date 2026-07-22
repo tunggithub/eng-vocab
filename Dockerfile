@@ -1,12 +1,17 @@
-# Static site (HTML/JS thuần, backend là Supabase)
-# Serve bằng http.server có sẵn của Python — đơn giản, không cần config riêng
-FROM python:3.12-alpine
+# App cục bộ: backend Node + SQLite, không cần Supabase/Vercel
+FROM node:24-slim
+
+# better-sqlite3 cần build tools nếu không có prebuilt binary
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Chỉ cần các file tĩnh cho frontend
-COPY index.html config.js ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY server.js db.js ai.js index.html api.js ./
+COPY routes ./routes
 
 EXPOSE 3000
-
-CMD ["python", "-m", "http.server", "3000"]
+CMD ["node", "server.js"]

@@ -5,5 +5,9 @@ services:
     container_name: eng-vocab
     ports:
       - "3000:3000"
-    # Tự khởi động lại khi crash, và tự chạy lại khi máy/Docker khởi động lại
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PORT=3000
+    volumes:
+      - ./data:/app/data
     restart: unless-stopped
