@@ -6,6 +6,7 @@ import "dotenv/config";
 import { openDb } from "./db.js";
 import { wordsRouter } from "./routes/words.js";
 import { metaRouter } from "./routes/meta.js";
+import { aiRouter } from "./routes/ai.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,11 @@ export function createApp(db, opts = {}) {
 
   app.use("/api", wordsRouter(db));
   app.use("/api", metaRouter(db));
+  app.use("/api", aiRouter(db, {
+    audioDir,
+    apiKey: opts.apiKey,
+    fetchImpl: opts.fetchImpl || fetch,
+  }));
 
   app.use("/audio", express.static(audioDir));
   app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
