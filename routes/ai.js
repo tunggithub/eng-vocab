@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { defineWord, writeScript, buildScript, synthTTS, VOICES, STYLES, MAX_CHARS } from "../ai.js";
 
-export function aiRouter(db, { audioDir, apiKey, fetchImpl = fetch }) {
+export function aiRouter(db, { audioDir, apiKey, fetchImpl = fetch, baseUrl }) {
   const r = express.Router();
 
   r.post("/define-word", async (req, res) => {
@@ -11,7 +11,7 @@ export function aiRouter(db, { audioDir, apiKey, fetchImpl = fetch }) {
     const term = (req.body?.term || "").trim();
     if (!term) return res.status(400).json({ error: "Chưa có từ" });
     try {
-      res.json(await defineWord(term, apiKey, fetchImpl));
+      res.json(await defineWord(term, apiKey, fetchImpl, baseUrl));
     } catch (e) {
       res.status(502).json({ error: String(e.message || e) });
     }
@@ -34,7 +34,7 @@ export function aiRouter(db, { audioDir, apiKey, fetchImpl = fetch }) {
 
     const makeScript = async (lang) => {
       let s = "";
-      try { s = await writeScript(words, useStyle, lang, apiKey, fetchImpl); }
+      try { s = await writeScript(words, useStyle, lang, apiKey, fetchImpl, baseUrl); }
       catch (e) { console.error(`[podcast] writeScript(${lang}) failed:`, String(e)); s = ""; }
       if (!s) s = buildScript(words, lang);
       return s.length > MAX_CHARS ? s.slice(0, MAX_CHARS) : s;
@@ -43,8 +43,8 @@ export function aiRouter(db, { audioDir, apiKey, fetchImpl = fetch }) {
     try {
       const [scriptVi, scriptEn] = await Promise.all([makeScript("vi"), makeScript("en")]);
       const [audioVi, audioEn] = await Promise.all([
-        synthTTS(scriptVi, useVoice, apiKey, fetchImpl),
-        synthTTS(scriptEn, useVoice, apiKey, fetchImpl),
+        synthTTS(scriptVi, useVoice, apiKey, fetchImpl, baseUrl),
+        synthTTS(scriptEn, useVoice, apiKey, fetchImpl, baseUrl),
       ]);
       await fs.mkdir(audioDir, { recursive: true });
       await fs.writeFile(explainPath, audioVi);

@@ -29,6 +29,13 @@ Thư mục `./data` được mount làm volume nên dữ liệu không mất khi
 ra frontend. Model dùng: `gpt-5.4-nano` (viết nghĩa/kịch bản) và `gpt-4o-mini-tts` (đọc).
 Đổi model trong `ai.js`. Không có khoá thì các nút AI báo lỗi nhẹ nhàng; phần còn lại vẫn chạy.
 
+Muốn dùng proxy/gateway tương thích OpenAI thay cho API thật (ví dụ chạy cục bộ), đặt
+`OPENAI_BASE_URL` trong `.env` — phải kèm tiền tố phiên bản, app tự nối `/chat/completions`
+và `/audio/speech`. Bỏ trống thì dùng thẳng `https://api.openai.com/v1`.
+```dotenv
+OPENAI_BASE_URL=http://localhost:8080/v1
+```
+
 ## Chuyển dữ liệu từ Supabase cũ (một lần)
 Nếu bạn từng dùng bản Supabase và muốn mang dữ liệu về:
 ```bash

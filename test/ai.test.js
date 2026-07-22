@@ -35,3 +35,30 @@ test("synthTTS returns audio bytes", async () => {
   const buf = await synthTTS("hello", "alloy", "key", f);
   assert.equal(buf.length, 3);
 });
+
+test("defaults to the real OpenAI endpoint when no baseUrl given", async () => {
+  let seen;
+  const f = fakeFetch((url) => { seen = url; return ok({ choices: [{ message: { content: JSON.stringify({ meaning: "x", example: "y" }) } }] }); });
+  await defineWord("cat", "key", f);
+  assert.equal(seen, "https://api.openai.com/v1/chat/completions");
+});
+
+test("routes chat + TTS through a custom baseUrl (e.g. a local proxy)", async () => {
+  const base = "http://localhost:8080/v1";
+  let chatUrl;
+  const chat = fakeFetch((url) => { chatUrl = url; return ok({ choices: [{ message: { content: "Xin chào cat." } }] }); });
+  await writeScript([{ term: "cat", meaning: "mèo" }], "single", "vi", "key", chat, base);
+  assert.equal(chatUrl, "http://localhost:8080/v1/chat/completions");
+
+  let speechUrl;
+  const speech = fakeFetch((url) => { speechUrl = url; return new Response(new Uint8Array([1]), { status: 200 }); });
+  await synthTTS("hello", "alloy", "key", speech, base);
+  assert.equal(speechUrl, "http://localhost:8080/v1/audio/speech");
+});
+
+test("trailing slash in baseUrl is normalized", async () => {
+  let seen;
+  const f = fakeFetch((url) => { seen = url; return ok({ choices: [{ message: { content: JSON.stringify({ meaning: "x", example: "y" }) } }] }); });
+  await defineWord("cat", "key", f, "http://localhost:8080/v1/");
+  assert.equal(seen, "http://localhost:8080/v1/chat/completions");
+});

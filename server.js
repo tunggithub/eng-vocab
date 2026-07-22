@@ -21,6 +21,7 @@ export function createApp(db, opts = {}) {
     audioDir,
     apiKey: opts.apiKey,
     fetchImpl: opts.fetchImpl || fetch,
+    baseUrl: opts.baseUrl,
   }));
 
   app.use("/audio", express.static(audioDir));
@@ -36,7 +37,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const audioDir = path.join(dataDir, "audio");
   fs.mkdirSync(audioDir, { recursive: true });
   const db = openDb(path.join(dataDir, "vocab.db"));
-  const app = createApp(db, { audioDir, apiKey: process.env.OPENAI_API_KEY });
+  const app = createApp(db, { audioDir, apiKey: process.env.OPENAI_API_KEY, baseUrl: process.env.OPENAI_BASE_URL });
   const port = process.env.PORT || 3000;
   app.listen(port, () => console.log(`eng-vocab chạy tại http://localhost:${port}`));
 }
