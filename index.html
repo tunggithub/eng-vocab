@@ -4,8 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sổ Từ Vựng — Flashcard & Ôn tập mỗi ngày</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
+  <script src="api.js"></script>
   <style>
     :root {
       --bg: #0f1220;
@@ -152,38 +151,16 @@
   </style>
 </head>
 <body>
-  <!-- Màn hình cấu hình (khi chưa điền config.js) -->
-  <div id="screenSetup" class="wrap hidden">
-    <div class="card screen">
-      <h2>⚙️ Cần cấu hình Supabase</h2>
-      <p>Mở file <code>config.js</code> và điền <code>SUPABASE_URL</code> cùng <code>SUPABASE_PUBLISHABLE_KEY</code> lấy từ Supabase Dashboard → Project Settings → API Keys. Xem hướng dẫn chi tiết trong <code>README.md</code>.</p>
-    </div>
-  </div>
-
-  <!-- Màn hình đăng nhập -->
-  <div id="screenLogin" class="wrap hidden">
-    <div class="card screen">
-      <h2 id="authTitle">🔐 Đăng nhập</h2>
-      <p id="authSub">Nhập email và mật khẩu để đăng nhập. Tài khoản do quản trị viên cấp — không có đăng ký tự do.</p>
-      <div class="row"><input id="loginEmail" type="email" placeholder="ban@example.com" autocomplete="email" /></div>
-      <div class="row"><input id="loginPass" type="password" placeholder="Mật khẩu" autocomplete="current-password" /></div>
-      <button class="btn" id="btnAuth" style="width:100%">Đăng nhập</button>
-      <p id="loginMsg" class="center" style="margin-top:14px"></p>
-    </div>
-  </div>
-
   <!-- App chính -->
-  <div id="app" class="wrap hidden">
+  <div id="app" class="wrap">
     <header>
       <div>
         <h1>Sổ Từ Vựng<span class="dot">.</span></h1>
-        <div class="sub">Nhập từ · Flashcard · Ôn tập mỗi ngày · Đồng bộ đám mây</div>
+        <div class="sub">Nhập từ · Flashcard · Ôn tập mỗi ngày</div>
       </div>
       <div class="acct">
-        <span id="acctEmail"></span>
         <button class="btn ghost sm" id="btnExport">⬇ Xuất</button>
         <button class="btn ghost sm" id="btnImport">⬆ Nhập</button>
-        <button class="btn ghost sm" id="btnLogout">Đăng xuất</button>
         <input type="file" id="fileImport" accept="application/json" class="hidden" />
       </div>
     </header>
@@ -249,7 +226,7 @@
       <div id="podcastArea"></div>
     </section>
 
-    <footer>Dữ liệu được lưu an toàn trên Supabase và đồng bộ giữa mọi thiết bị bạn đăng nhập.</footer>
+    <footer>Dữ liệu được lưu trên server cục bộ (SQLite).</footer>
   </div>
 
   <script>
@@ -277,44 +254,42 @@
       setTimeout(() => t.remove(), 3000);
     }
 
-    // ---------- State + Supabase ----------
-    let sb = null, user = null;
+    // ---------- State + local API ----------
     const db = { words: [], streak: 0, lastReviewDay: null };
 
     async function loadAll() {
-      const { data: words, error } = await sb.from("words").select("*").order("created", { ascending: false });
-      if (error) throw error;
-      db.words = words || [];
-      const { data: meta } = await sb.from("meta").select("*").eq("user_id", user.id).maybeSingle();
+      db.words = await api.listWords();
+      const meta = await api.getMeta();
       db.streak = (meta && meta.streak) || 0;
       db.lastReviewDay = (meta && meta.last_review_day) || null;
     }
 
     async function addWord(term, mean, ex, ipa, audio, pos, note) {
       const row = { term: term.trim(), meaning: mean.trim(), example: (ex || "").trim(), ipa: (ipa || "").trim(), audio: (audio || "").trim(), pos: (pos || "").trim(), note: (note || "").trim(), box: 0, due: todayStr(), created: todayStr(), reviews: 0, correct: 0 };
-      const { data, error } = await sb.from("words").insert(row).select().single();
-      if (error) throw error;
+      const data = await api.addWord(row);
       db.words.unshift(data);
     }
 
     async function persistGrade(w) {
-      const { error } = await sb.from("words").update({ box: w.box, due: w.due, reviews: w.reviews, correct: w.correct, last_review: w.last_review, learned_on: w.learned_on }).eq("id", w.id);
-      if (error) toast("Lỗi lưu: " + error.message);
+      try {
+        await api.updateWord(w.id, { box: w.box, due: w.due, reviews: w.reviews, correct: w.correct, last_review: w.last_review, learned_on: w.learned_on });
+      } catch (e) { toast("Lỗi lưu: " + e.message); }
     }
 
     async function deleteWord(id) {
-      const { error } = await sb.from("words").delete().eq("id", id);
-      if (error) { toast("Lỗi xoá: " + error.message); return false; }
+      try { await api.deleteWord(id); }
+      catch (e) { toast("Lỗi xoá: " + e.message); return false; }
       db.words = db.words.filter((w) => w.id !== id);
       return true;
     }
 
     async function updateWord(id, fields) {
-      const { data, error } = await sb.from("words").update(fields).eq("id", id).select().single();
-      if (error) { toast("Lỗi lưu: " + error.message); return false; }
-      const i = db.words.findIndex((w) => w.id === id);
-      if (i >= 0) db.words[i] = data;
-      return true;
+      try {
+        const data = await api.updateWord(id, fields);
+        const i = db.words.findIndex((w) => w.id === id);
+        if (i >= 0) db.words[i] = data;
+        return true;
+      } catch (e) { toast("Lỗi lưu: " + e.message); return false; }
     }
 
     async function bumpStreak() {
@@ -323,8 +298,8 @@
       const yesterday = addDays(t, -1);
       db.streak = db.lastReviewDay === yesterday ? (db.streak || 0) + 1 : 1;
       db.lastReviewDay = t;
-      const { error } = await sb.from("meta").upsert({ user_id: user.id, streak: db.streak, last_review_day: t });
-      if (error) toast("Lỗi lưu streak: " + error.message);
+      try { await api.putMeta({ streak: db.streak, last_review_day: t }); }
+      catch (e) { toast("Lỗi lưu streak: " + e.message); }
     }
 
     // ---------- Review selection logic ----------
@@ -396,17 +371,10 @@
       try {
         // Gọi AI và tra từ điển song song. Từ điển cho audio thật + IPA chuẩn;
         // AI cho nghĩa/ví dụ/từ loại và IPA dự phòng khi từ điển không có (cụm từ, từ hiếm).
-        const [invoked, dict] = await Promise.all([
-          sb.functions.invoke("define-word", { body: { term } }),
+        const [data, dict] = await Promise.all([
+          api.defineWord(term),
           lookupWord(term),
         ]);
-        const { data, error } = invoked;
-        if (error) {
-          let detail = "";
-          try { const body = await error.context.json(); detail = body.error || ""; } catch (_) {}
-          throw new Error(detail || error.message || "Không gọi được AI");
-        }
-        if (!data || data.error) throw new Error((data && data.error) || "Không có dữ liệu trả về");
         $("#fMean").value = data.meaning || "";
         $("#fEx").value = data.example || "";
         pendingPos = { term: term.toLowerCase(), pos: data.pos || "" };
@@ -640,9 +608,8 @@
       if (!db.words.length) return;
       const t = todayStr();
       const rr = $("#revReset"); if (rr) rr.disabled = true;
-      // RLS giới hạn theo user; "id is not null" khớp mọi từ của user trong 1 request.
-      const { error } = await sb.from("words").update({ box: 0, due: t, reviews: 0, correct: 0, last_review: null, learned_on: null }).not("id", "is", null);
-      if (error) { toast("Lỗi reset: " + error.message); if (rr) rr.disabled = false; return; }
+      try { await api.resetProgress(); }
+      catch (e) { toast("Lỗi reset: " + e.message); if (rr) rr.disabled = false; return; }
       db.words.forEach((w) => { w.box = 0; w.due = t; w.reviews = 0; w.correct = 0; w.last_review = null; w.learned_on = null; });
       toast("Đã reset tiến độ. Bắt đầu học lại từ đầu!");
       renderStats();
@@ -988,17 +955,7 @@
       btn.disabled = true;
       out.innerHTML = '<div class="progress-txt">⏳ Đang tạo audio bằng OpenAI… có thể mất 10–30 giây.</div>';
       try {
-        const { data, error } = await sb.functions.invoke("generate-podcast", {
-          body: { words: currentWordsPayload(), hash: wordsHash(), voice: aiVoice, style: aiStyle, force: !!force }
-        });
-        if (error) {
-          // supabase-js đặt error.message = "...non-2xx status code" chung chung;
-          // lỗi thật nằm trong error.context (Response body). Đọc ra để hiển thị.
-          let detail = "";
-          try { const body = await error.context.json(); detail = body.error || ""; } catch (_) {}
-          throw new Error(detail || error.message || "Không gọi được Edge Function");
-        }
-        if (!data || data.error) throw new Error((data && data.error) || "Không có dữ liệu trả về");
+        const data = await api.generatePodcast({ words: currentWordsPayload(), hash: wordsHash(), voice: aiVoice, style: aiStyle, force: !!force });
         if (!data.explainUrl || !data.podcastUrl) throw new Error("Thiếu audio trả về");
         const player = (icon, title, sub, url, file) =>
           '<div style="margin-bottom:14px">' +
@@ -1007,8 +964,8 @@
             '<a class="btn ghost sm" style="margin-top:6px" href="' + url + '" download="' + file + '">⬇ Tải MP3</a>' +
           '</div>';
         out.innerHTML =
-          player("🗣️", "Giải thích từ vựng", "song ngữ, nắm nghĩa trước", data.explainUrl, "giai-thich-tu-vung.mp3") +
-          player("🎙️", "Podcast tiếng Anh", "nghe ngấm, nhập vai", data.podcastUrl, "podcast-tieng-anh.mp3") +
+          player("🗣️", "Giải thích từ vựng", "song ngữ, nắm nghĩa trước", data.explainUrl + '?t=' + Date.now(), "giai-thich-tu-vung.mp3") +
+          player("🎙️", "Podcast tiếng Anh", "nghe ngấm, nhập vai", data.podcastUrl + '?t=' + Date.now(), "podcast-tieng-anh.mp3") +
           '<div class="pod-controls" style="margin-top:4px">' +
             '<button class="btn ghost sm" id="aiRegen">🔄 Tạo lại</button>' +
             '<span class="progress-txt">' + (data.reused ? "♻️ Dùng lại bản đã tạo hôm nay." : "✅ Đã tạo 2 audio mới.") + '</span>' +
@@ -1016,7 +973,7 @@
         $("#aiRegen").addEventListener("click", () => genAI(true));
       } catch (e) {
         out.innerHTML = '<div class="progress-txt" style="color:var(--red)">Lỗi: ' + esc(e.message) + '.<br>' +
-          'Hãy chắc chắn đã deploy Edge Function <code>generate-podcast</code> và đặt secret <code>OPENAI_API_KEY</code> (xem README). Trong lúc đó bạn vẫn nghe được bằng giọng trình duyệt bên dưới.</div>';
+          'Kiểm tra server đã đặt <code>OPENAI_API_KEY</code> trong <code>.env</code> chưa (xem README). Trong lúc đó bạn vẫn nghe được bằng giọng trình duyệt bên dưới.</div>';
       } finally { btn.disabled = false; }
     }
 
@@ -1115,8 +1072,7 @@
           reviews: w.reviews || 0, correct: w.correct || 0, last_review: w.last_review || w.lastReview || null,
           learned_on: w.learned_on || w.learnedOn || null
         }));
-        const { error } = await sb.from("words").insert(rows);
-        if (error) throw error;
+        await api.bulkAddWords(rows);
         await loadAll();
         toast("Đã nhập " + rows.length + " từ.");
         renderStats(); renderReview();
@@ -1129,52 +1085,16 @@
     function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
     function emptyHtml(em, msg) { return '<div class="empty"><div class="em">' + em + '</div><div>' + msg + '</div></div>'; }
 
-    // ---------- Auth screens ----------
-    function show(screen) {
-      ["screenSetup", "screenLogin", "app"].forEach((id) => $("#" + id).classList.toggle("hidden", id !== screen));
-    }
-    function loginMsg(text, isErr) {
-      $("#loginMsg").style.color = isErr ? "var(--red)" : "var(--green)";
-      $("#loginMsg").innerHTML = text;
-    }
-    $("#loginPass").addEventListener("keydown", (e) => { if (e.key === "Enter") doAuth(); });
-    $("#btnAuth").addEventListener("click", doAuth);
-    async function doAuth() {
-      const email = $("#loginEmail").value.trim();
-      const password = $("#loginPass").value;
-      if (!email || !password) { loginMsg("Nhập cả email và mật khẩu.", true); return; }
-      $("#btnAuth").disabled = true;
-      try {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      } catch (e) {
-        loginMsg("Lỗi: " + e.message + " (tài khoản do quản trị viên cấp).", true);
-      } finally { $("#btnAuth").disabled = false; }
-    }
-    $("#btnLogout").addEventListener("click", async () => { await sb.auth.signOut(); });
-
-    async function onSession(session) {
-      if (session && session.user) {
-        user = session.user;
-        $("#acctEmail").textContent = user.email;
-        show("app");
-        try { await loadAll(); } catch (e) { toast("Lỗi tải dữ liệu: " + e.message); }
-        renderStats(); renderReview();
-      } else {
-        user = null;
-        show("screenLogin");
-      }
-    }
-
     // ---------- init ----------
     (async function init() {
-      const URL_ = window.SUPABASE_URL, KEY = window.SUPABASE_PUBLISHABLE_KEY || window.SUPABASE_ANON_KEY;
-      if (!URL_ || !KEY || URL_.indexOf("PASTE_") === 0) { show("screenSetup"); return; }
-      if (!window.supabase) { show("screenSetup"); toast("Không tải được thư viện Supabase (cần có mạng)."); return; }
-      sb = window.supabase.createClient(URL_, KEY);
-      sb.auth.onAuthStateChange((_e, session) => onSession(session));
-      const { data } = await sb.auth.getSession();
-      onSession(data.session);
+      try {
+        await loadAll();
+      } catch (e) {
+        toast("Lỗi tải dữ liệu: " + e.message + " (server đã chạy chưa?)");
+        return;
+      }
+      renderStats();
+      renderReview();
     })();
   })();
   </script>
